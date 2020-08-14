@@ -3,11 +3,13 @@ which was referenced many times when building this. Thanks to the devs on them.
 :)
 
 ## Requirements
+
 - Clang 9.0.0
 - ld 2.34
 - CMake 3.15.4
 
 ### Grub Requirements (Optional)
+
 - grub-file 2.04-5
 - grub-mkrescue 2.04-5
 
@@ -26,6 +28,11 @@ $ qemu-system-i386 -cdrom myos.iso -display curses
 
 # Exit QEMU with Alt+2, type quit, ENTER
 ```
+
+### QEMU Options
+
+- `-serial file:serial.log`
+  - Writes to COM1 will be written to `serial.log`.
 
 ## Formatting
 

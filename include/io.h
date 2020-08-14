@@ -1,6 +1,8 @@
 #ifndef IO_H_
 #define IO_H_
 
+#include <kstdint.h>
+
 // Functions for reading from and writing to ports.
 inline void Write8(uint16_t port, uint8_t value) {
   asm volatile("outb %1, %0" : : "dN"(port), "a"(value));

@@ -13,8 +13,11 @@ namespace terminal {
 
 /**
  * If selected, printing from the kernel will show on a 80x25 textual display.
+ *
+ * If `serial` is true, characters that normally would be printed on the
+ * terminal will also be written to COM1, which can be stored in a file on QEMU.
  */
-void UseTextTerminal();
+void UseTextTerminal(bool serial);
 
 /**
  * If selected, printing from the kernel will show on a graphical display. The
@@ -27,7 +30,7 @@ void UseTextTerminal();
  * address rather than the physical address which could be outside the range
  * that we allocated pages for.
  */
-void UseGraphicsTerminalPhysical(Multiboot*);
+void UseGraphicsTerminalPhysical(const Multiboot*, bool serial);
 
 /**
  * If using graphics mode, this should be called after initializing paging to

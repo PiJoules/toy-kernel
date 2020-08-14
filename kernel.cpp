@@ -21,8 +21,6 @@ extern "C" uint8_t _start, _end;
 
 void RunTests();
 
-uint32_t syscall_terminal_write2(const char *p1);
-
 namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
@@ -49,23 +47,18 @@ void UserspaceFunc2([[maybe_unused]] void *args) { Nested(); }
 
 extern "C" {
 
-// TODO: Should multiboot be const?
-void kernel_main(Multiboot *multiboot) {
+void kernel_main(const Multiboot *multiboot) {
   int stack_start;
 
   // At this point, we do not know how to print stuff yet. That is, are we
   // in VGA graphics mode or EGA text mode? We need to first identify where our
   // frame buffer is.
   if (multiboot->framebuffer_type == 1)
-    terminal::UseGraphicsTerminalPhysical(multiboot);
+    terminal::UseGraphicsTerminalPhysical(multiboot, /*serial=*/true);
   else
-    terminal::UseTextTerminal();
+    terminal::UseTextTerminal(/*serial=*/true);
 
-  // terminal::Clear();
   Write("Hello, kernel World!\n");
-
-  // TODO: Enable serial ports?
-  // https://wiki.osdev.org/Serial_Ports#Initialization
 
   WriteF("multiboot flags: {}\n", Hex(multiboot->flags));
   WriteF("Lower memory: {}\n", Hex(multiboot->mem_lower));

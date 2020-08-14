@@ -5,6 +5,7 @@
 #include <kctype.h>
 #include <kstdint.h>
 #include <paging.h>
+#include <serial.h>
 
 extern "C" char _binary_font_psf_start;
 
@@ -22,11 +23,15 @@ struct Terminal {
   using MoveCursorFunc = void (*)(uint16_t row, uint16_t col);
 
   void Init(PutAtFunc putat, MoveCursorFunc movecursor, uint16_t numrows,
-            uint16_t numcols) {
+            uint16_t numcols, bool serial) {
+    assert(!isInitialized() && "Already set up the terminal");
     putat_ = putat;
     movecursor_ = movecursor;
     numrows_ = numrows;
     numcols_ = numcols;
+    serial_ = serial;
+
+    if (serial) serial::Initialize();
   }
 
   bool isInitialized() const { return putat_ && movecursor_; }
@@ -40,7 +45,10 @@ struct Terminal {
     movecursor_(0, 0);
   }
 
-  void Put(char c) { putat_(c, row_, col_); }
+  void Put(char c) {
+    putat_(c, row_, col_);
+    if (serial_) serial::Write(c);
+  }
 
   uint16_t getNumRows() const { return numrows_; }
   uint16_t getNumCols() const { return numcols_; }
@@ -52,6 +60,7 @@ struct Terminal {
   MoveCursorFunc movecursor_ = nullptr;
   uint16_t numrows_, numcols_;
   uint16_t row_ = 0, col_ = 0;
+  bool serial_ = false;
 };
 
 Terminal kTerminal;
@@ -342,14 +351,14 @@ void PrintDecimal(PutFunc put, int32_t val) {
 
 }  // namespace
 
-void UseTextTerminal() {
+void UseTextTerminal(bool serial) {
   kTerminal.Init(text::PutAt, text::MoveCursor, text::kVgaHeight,
-                 text::kVgaWidth);
+                 text::kVgaWidth, serial);
 }
 
 bool UsingGraphics() { return graphics::UsingGraphics; }
 
-void UseGraphicsTerminalPhysical(Multiboot *multiboot) {
+void UseGraphicsTerminalPhysical(const Multiboot *multiboot, bool serial) {
   graphics::GFXBuffer =
       reinterpret_cast<uint32_t *>(multiboot->framebuffer_addr);
 
@@ -363,7 +372,8 @@ void UseGraphicsTerminalPhysical(Multiboot *multiboot) {
   kTerminal.Init(
       graphics::PutAt, graphics::MoveCursor,
       static_cast<uint16_t>(graphics::PixelHeight / graphics::kLinePixelHeight),
-      static_cast<uint16_t>(graphics::PixelWidth / graphics::kLinePixelWidth));
+      static_cast<uint16_t>(graphics::PixelWidth / graphics::kLinePixelWidth),
+      serial);
 
   graphics::UsingGraphics = true;
 
