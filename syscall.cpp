@@ -1,7 +1,6 @@
 #include <Terminal.h>
 #include <kassert.h>
 #include <kthread.h>
-#include <scheduler.h>
 #include <syscall.h>
 
 #define DEF_SYSCALL0(func, syscall)                             \

@@ -40,6 +40,6 @@ using isr_t = void (*)(registers_t *);
 void RegisterInterruptHandler(uint8_t interrupt, isr_t handler);
 void UnregisterInterruptHandler(uint8_t interrupt);
 isr_t GetInterruptHandler(uint8_t interrupt);
-void DumpRegisters(registers_t *regs);
+void DumpRegisters(const registers_t *regs);
 
 #endif

@@ -5,15 +5,15 @@
 #include <Terminal.h>
 #include <io.h>
 #include <isr.h>
+#include <kthread.h>
 #include <paging.h>
 #include <panic.h>
-#include <scheduler.h>
 
 using terminal::Hex;
 
 isr_t interrupt_handlers[256];
 
-void DumpRegisters(registers_t *regs) {
+void DumpRegisters(const registers_t *regs) {
   if (regs->int_no == 0xd) {
     terminal::Write("General protection fault\n");
     if (auto err = regs->err_code) {
@@ -59,14 +59,8 @@ void DumpRegisters(registers_t *regs) {
   terminal::WriteF("ss: {}\n", Hex(regs->ss));
 
   // Dump the stack
-  uint32_t *esp;
-  if (user) {
-    terminal::Write("Stack dump user:\n");
-    esp = (uint32_t *)regs->useresp;
-  } else {
-    terminal::Write("Stack dump:\n");
-    esp = (uint32_t *)regs->esp;
-  }
+  uint32_t *esp = (uint32_t *)regs->esp;
+  terminal::Write("Stack dump:\n");
   constexpr int dump_size = 28;
   assert(dump_size % 4 == 0 && "The stack dump size must be a multiple of 4");
   for (int i = dump_size; i >= 0; i -= 4) {

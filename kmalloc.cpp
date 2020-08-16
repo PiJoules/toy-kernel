@@ -25,8 +25,10 @@ void *ksbrk_page(unsigned n) {
     assert(p_addr && "No free page frames available!");
 
     // Add PG_USER to allow user programs to read kernel heap
+    // FIXME: Each use process should have it's own page directory that we can
+    // freely allocate user pages.
     GetKernelPageDirectory().AddPage(KernelHeap, p_addr, PG_USER);
-    // AddPageToPageDirectory(KernelHeap, p_addr, 0);
+    // GetKernelPageDirectory().AddPage(KernelHeap, p_addr, 0);
 
     KernelHeap += kPageSize4M;
   }

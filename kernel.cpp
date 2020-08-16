@@ -9,7 +9,6 @@
 #include <kthread.h>
 #include <paging.h>
 #include <panic.h>
-#include <scheduler.h>
 #include <syscall.h>
 #include <tests.h>
 
@@ -25,11 +24,6 @@ namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
-
-void InitializeMemory(uint32_t high_mem) {
-  InitializePaging(high_mem);
-  InitializeKernelHeap();
-}
 
 void UserspaceFunc([[maybe_unused]] void *args) {
   syscall_terminal_write("Printing this through a syscall.\n");
@@ -62,7 +56,7 @@ void kernel_main(const Multiboot *multiboot) {
 
   WriteF("multiboot flags: {}\n", Hex(multiboot->flags));
   WriteF("Lower memory: {}\n", Hex(multiboot->mem_lower));
-  WriteF("Upper memory: {}\n", Hex(multiboot->mem_upper));
+  WriteF("Upper memory (kB): {}\n", Hex(multiboot->mem_upper));
   WriteF("Kernel start:{} - end:{}\n", Hex(kPhysicalKernelAddrStart),
          Hex(kPhysicalKernelAddrEnd));
   WriteF("Stack start: {}\n", &stack_start);
@@ -86,9 +80,10 @@ void kernel_main(const Multiboot *multiboot) {
   {
     // Initialize stuff for the kernel to work.
     InitDescriptorTables();
-    InitializeMemory(multiboot->mem_upper);
+    InitializePaging(multiboot->mem_upper, /*pages_4K=*/true);
+    InitializeKernelHeap();
     InitTimer(50);
-    init_scheduler();
+    InitScheduler();
     InitializeSyscalls();
     InitializeKeyboard();
   }
@@ -100,12 +95,10 @@ void kernel_main(const Multiboot *multiboot) {
     terminal::WriteF("#Cols: {}\n", terminal::GetNumCols());
 
     // Run some threads in userspace.
-    thread_t *t2 = create_user_thread(UserspaceFunc, (void *)0xfeed);
-    thread_t *t3 = create_user_thread(UserspaceFunc2, (void *)0xfeed2);
-    thread_join(t2);
-    thread_join(t3);
-    kfree(t2);
-    kfree(t3);
+    Thread t2 = Thread::CreateUserProcess(UserspaceFunc, (void *)0xfeed);
+    Thread t3 = Thread::CreateUserProcess(UserspaceFunc2, (void *)0xfeed2);
+    t2.Join();
+    t3.Join();
 
     // Test a user program loaded as a multiboot module.
     WriteF("multiboot address: {}\n", multiboot);
@@ -122,9 +115,8 @@ void kernel_main(const Multiboot *multiboot) {
       size_t size = usermod->getModuleSize();
       void *data = reinterpret_cast<void *>(USER_START);
       memcpy(data, usermod->getModuleStart(), size);
-      thread_t *ut1 = create_user_thread((ThreadFunc)data, (void *)0xfeed);
-      thread_join(ut1);
-      kfree(ut1);
+      Thread ut1 = Thread::CreateUserProcess((ThreadFunc)data, (void *)0xfeed);
+      ut1.Join();
     }
   }
 

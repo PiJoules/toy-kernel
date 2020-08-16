@@ -33,13 +33,17 @@ struct MallocHeader {
                                             sizeof(MallocHeader));
   }
 
+  uint8_t *getOffset(size_t offset) {
+    return reinterpret_cast<uint8_t *>(this) + offset;
+  }
+
+  uint8_t *getEnd() { return getOffset(size); }
+
   MallocHeader *NextChunk(size_t size) {
-    return reinterpret_cast<MallocHeader *>(reinterpret_cast<uint8_t *>(this) +
-                                            size);
+    return reinterpret_cast<MallocHeader *>(getOffset(size));
   }
   MallocHeader *NextChunk() {
-    return reinterpret_cast<MallocHeader *>(reinterpret_cast<uint8_t *>(this) +
-                                            size);
+    return reinterpret_cast<MallocHeader *>(getEnd());
   }
 } __attribute__((packed));
 static_assert(sizeof(MallocHeader) == 4, "");

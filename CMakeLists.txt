@@ -30,9 +30,9 @@ add_custom_target(${FONT} ALL
 
 add_library(cpp_objs STATIC
   kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp terminal.cpp Timer.cpp
-  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp thread.cpp scheduler.cpp
+  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp thread.cpp
   syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
-  serial.cpp)
+  serial.cpp cxa_pure_virtual.cpp)
 target_compile_options(cpp_objs
   PRIVATE -I ${CMAKE_SOURCE_DIR}/include/
   PRIVATE -target i386

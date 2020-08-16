@@ -26,7 +26,9 @@
 #define GFX_MEMORY_START 0x01000000  // 16 MB
 #define GFX_MEMORY_END 0x1400000     // 20 MB
 #define KERN_HEAP_BEGIN 0x02000000   // 32 MB
-#define KERN_HEAP_END 0x40000000     // 1 gb
+#define KERN_HEAP_END 0x40000000     // 1 GB
+#define USER_HEAP_BEGIN KERN_HEAP_END
+#define USER_HEAP_END 0x80000000  // 2 GB
 
 #define PAGING_FLAG 0x80000000  // CR0 - bit 31
 #define PSE_FLAG 0x00000010     // CR4 - bit 4
@@ -36,7 +38,9 @@
 #define PG_4MB 0x00000080
 
 constexpr unsigned kPageSize4M = 0x00400000;
-constexpr unsigned kRamAs4MPages = 1024;  // Tofal RAM = 1024 x 4 MB = 4 GB
+constexpr unsigned kRamAs4MPages = 0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB
+constexpr unsigned kRamAs4KPages =
+    0x100000;  // Tofal RAM = 0x100000 x 4 KB = 4 GB
 extern uint8_t PhysicalPageFrameBitmap[kRamAs4MPages / 8];
 
 constexpr uint32_t PageIndex4M(uint32_t addr) { return addr >> 22; }
@@ -47,12 +51,16 @@ inline void *PageAddr4M(uint32_t page) {
   return reinterpret_cast<void *>(page << 22);
 }
 
-constexpr size_t kNumPageDirEntries = kRamAs4MPages;
+constexpr size_t kNumPageDirEntries = 1024;
 
-void InitializePaging(uint32_t high_mem);
+void InitializePaging(uint32_t high_mem, bool pages_4K);
 
+// FIXME: Might be cleaner to just have 2 subclasses: one for 4K and one for 4M.
 class PageDirectory {
  public:
+  void Init4KPages() { using_4M_pages_ = false; }
+  void Init4MPages() { using_4M_pages_ = true; }
+
   uint32_t *get() { return pd_impl_; }
 
   // Map virtual memory to physical memory.
@@ -62,7 +70,7 @@ class PageDirectory {
   uint8_t *NextFreePhysicalPage() const;
 
   /**
-   * Specify uthe number of pages of physical memory available.
+   * Specify the number of pages of physical memory available.
    */
   void ReservePhysical(size_t num_pages) {
     assert(num_pages < kNumPageDirEntries);
@@ -72,22 +80,35 @@ class PageDirectory {
 
   void Clear() {
     memset(pd_impl_, 0, sizeof(pd_impl_));
-    memset(physical_bitmap_, 0, sizeof(physical_bitmap_));
+    memset(getBitmap(), 0, getBitmapSize());
   }
 
  private:
   void setPageFrameUsed(size_t page_index) {
     assert(page_index < kNumPageDirEntries);
-    physical_bitmap_[page_index / 8] |= (UINT32_C(1) << (page_index % 8));
+    getBitmap()[page_index / 8] |= (UINT32_C(1) << (page_index % 8));
   }
 
   void setPageFrameFree(size_t page_index) {
     assert(page_index < kNumPageDirEntries);
-    physical_bitmap_[page_index / 8] &= ~(UINT32_C(1) << (page_index % 8));
+    getBitmap()[page_index / 8] &= ~(UINT32_C(1) << (page_index % 8));
   }
 
   bool isPageFrameUsed(size_t page_index) const {
-    return physical_bitmap_[page_index / 8] & (UINT8_C(1) << (page_index % 8));
+    return getBitmap()[page_index / 8] & (UINT8_C(1) << (page_index % 8));
+  }
+
+  const uint8_t *getBitmap() const {
+    return using_4M_pages_ ? physical_bitmap_4M_ : physical_bitmap_4K_;
+  }
+
+  uint8_t *getBitmap() {
+    return using_4M_pages_ ? physical_bitmap_4M_ : physical_bitmap_4K_;
+  }
+
+  size_t getBitmapSize() const {
+    return using_4M_pages_ ? sizeof(physical_bitmap_4M_)
+                           : sizeof(physical_bitmap_4K_);
   }
 
   alignas(4096) uint32_t pd_impl_[kNumPageDirEntries];
@@ -104,11 +125,14 @@ class PageDirectory {
   // MB), PhysicalPageFrameBitmap[1] & 1 represents the ninth 4 MB, [32 MB - 36
   // MB),
   // ...
-  uint8_t physical_bitmap_[kRamAs4MPages / 8];
+  union {
+    uint8_t physical_bitmap_4M_[kRamAs4MPages / 8];
+    uint8_t physical_bitmap_4K_[kRamAs4KPages / 8];
+  };
+  bool using_4M_pages_ = true;
 };
 
 PageDirectory &GetKernelPageDirectory();
-PageDirectory &GetCurrentPageDirectory();
 void SwitchPageDirectory(PageDirectory &pd);
 
 struct IdentityMapRAII {

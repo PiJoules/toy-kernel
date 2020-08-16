@@ -1,13 +1,12 @@
 #include <Terminal.h>
 #include <isr.h>
+#include <kthread.h>
 #include <paging.h>
 #include <panic.h>
-#include <scheduler.h>
 
 namespace {
 
 PageDirectory KernelPageDir;
-PageDirectory *CurrentPageDir = nullptr;
 
 void HandlePageFault(registers_t *regs) {
   uint32_t faulting_addr;
@@ -43,22 +42,26 @@ void HandlePageFault(registers_t *regs) {
 
 }  // namespace
 
-void InitializePaging(uint32_t high_mem_KB) {
+void InitializePaging(uint32_t high_mem_KB, bool pages_4K) {
   terminal::Write("Initializing paging...\n");
   RegisterInterruptHandler(14, HandlePageFault);
-  unsigned total_4MB_page_count = (high_mem_KB * 1024) / kPageSize4M + 1;
+  uint32_t total_mem = high_mem_KB * 1024;
 
   // Note: Based on how we calculate this, if we are running in QEMU, this may
   // be 32.
   // 32 4MB pages = 128 MB of total memory, which is the default memory limit
   // for QEMU.
-  terminal::WriteF("Total 4 MB page count: {}\n", total_4MB_page_count);
+  uint32_t num_4M_pages = total_mem / kPageSize4M + 1;
+  terminal::WriteF("Total 4 MB page count: {}\n", num_4M_pages);
 
   // FIXME: This just happens to be the QEMU default. We should set a clear
   // value on how much memory we would like.
-  assert(total_4MB_page_count >= 32 &&
-         "Expected at least 128 MB of memory available.");
+  assert(num_4M_pages >= 32 && "Expected at least 128 MB of memory available.");
 
+  if (pages_4K)
+    KernelPageDir.Init4KPages();
+  else
+    KernelPageDir.Init4MPages();
   KernelPageDir.Clear();
 
   // The first 128 MB are not used, but the rest of the physical memory is used.
@@ -152,9 +155,9 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
 }
 
 uint8_t *PageDirectory::NextFreePhysicalPage() const {
-  for (unsigned byte = 0; byte < sizeof(physical_bitmap_); ++byte) {
+  for (unsigned byte = 0; byte < getBitmapSize(); ++byte) {
     // Shortcut for checking if an 4MB chunks are available in this 32 MB chunk.
-    if (physical_bitmap_[byte] != 0xFF) {
+    if (getBitmap()[byte] != 0xFF) {
       // Check for a free 4MB chunk.
       for (unsigned bit = 0; bit < CHAR_BIT; ++bit) {
         // FIXME: We should not ignore the very first page. We only do this so
@@ -162,7 +165,7 @@ uint8_t *PageDirectory::NextFreePhysicalPage() const {
         // creating a separate page directory for that.
         if (byte == 0 && bit == 0) continue;
 
-        if (!(physical_bitmap_[byte] & (UINT8_C(1) << bit))) {
+        if (!(getBitmap()[byte] & (UINT8_C(1) << bit))) {
           uint32_t page_4MB = CHAR_BIT * byte + bit;
           return reinterpret_cast<uint8_t *>(page_4MB * kPageSize4M);
         }
@@ -175,7 +178,4 @@ uint8_t *PageDirectory::NextFreePhysicalPage() const {
 
 void SwitchPageDirectory(PageDirectory &pd) {
   asm volatile("mov %0, %%cr3" ::"r"(pd.get()));
-  CurrentPageDir = &pd;
 }
-
-PageDirectory &GetCurrentPageDirectory() { return *CurrentPageDir; }

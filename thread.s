@@ -54,13 +54,6 @@
   movl 12(%eax),%esi
   movl 16(%eax),%edi
 
-  // Set eflags, but save eax for later.
-  push %eax
-  movl 20(%eax),%eax
-  pushl %eax
-  popf
-  pop %eax
-
   // Restore segment registers.
   movw 24(%eax), %ds
   movw 26(%eax), %es

@@ -4,7 +4,6 @@
 #include <kmalloc.h>
 #include <kstring.h>
 #include <kthread.h>
-#include <scheduler.h>
 #include <tests.h>
 
 namespace {
@@ -234,20 +233,17 @@ TEST(SimpleThreads) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  thread_t *t = create_thread(func, &val, stack);
-  thread_t *t2 = create_thread(func2, &val2, stack2);
+  Thread t(func, &val, stack);
+  Thread t2(func2, &val2, stack2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
-  thread_join(t);
-  thread_join(t2);
+  t.Join();
+  t2.Join();
 
   ASSERT_EQ(val, 100);
   ASSERT_EQ(val2, 200);
   ASSERT_EQ(val3, 300);
-
-  kfree(t);
-  kfree(t2);
 }
 
 void func3(void *arg) {
@@ -262,32 +258,27 @@ TEST(ThreadExit) {
   uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
 
   uint32_t x = 10;
-  auto *t = create_thread(func3, &x, stack);
+  Thread t(func3, &x, stack);
 
-  thread_join(t);
+  t.Join();
   ASSERT_EQ(x, 11);
-
-  kfree(t);
 }
 
 TEST(DefaultStackAllocation) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  thread_t *t = create_thread(func, &val);
-  thread_t *t2 = create_thread(func2, &val2);
+  Thread t(func, &val);
+  Thread t2(func2, &val2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
-  thread_join(t);
-  thread_join(t2);
+  t.Join();
+  t2.Join();
 
   ASSERT_EQ(val, 100);
   ASSERT_EQ(val2, 200);
   ASSERT_EQ(val3, 300);
-
-  kfree(t);
-  kfree(t2);
 }
 
 TEST_SUITE(Threading) {
@@ -325,18 +316,52 @@ TEST(PageFault) {
   uint32_t *stack = toy::kmalloc<uint32_t>(256);
 
   uint32_t x = 0;
-  auto *t = create_thread(PageFaultThreadFunc, &x, stack);
+  Thread t(PageFaultThreadFunc, &x, stack);
 
-  thread_join(t);
+  t.Join();
 
   ASSERT_EQ(RegNum, 14u);
   ASSERT_EQ(x, 9);
   RegisterInterruptHandler(interrupt, old_handler);
-
-  kfree(t);
 }
 
 TEST_SUITE(PageFaultSuite) { RUN_TEST(PageFault); }
+
+TEST(VirtualMethods) {
+  struct A {
+    virtual int get() const { return 1; }
+  };
+  struct B : public A {
+    int get() const override { return 2; }
+  };
+  struct C : public A {
+    int get() const override { return 3; }
+  };
+  A a;
+  B b;
+  C c;
+  A *aptr = &a;
+  ASSERT_EQ(aptr->get(), 1);
+
+  aptr = &b;
+  ASSERT_EQ(aptr->get(), 2);
+
+  aptr = &c;
+  ASSERT_EQ(aptr->get(), 3);
+
+  struct D {
+    // __cxa_pure_virtual will need to be defined.
+    virtual int get() const = 0;
+  };
+  struct E : public D {
+    int get() const override { return 1; }
+  };
+  E e;
+  D *dptr = &e;
+  ASSERT_EQ(dptr->get(), 1);
+}
+
+TEST_SUITE(CppLangFeatures) { RUN_TEST(VirtualMethods); }
 
 }  // namespace
 
@@ -348,4 +373,5 @@ void RunTests() {
   tests.RunSuite(Malloc);
   tests.RunSuite(Threading);
   tests.RunSuite(PageFaultSuite);
+  tests.RunSuite(CppLangFeatures);
 }

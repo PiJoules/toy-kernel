@@ -4,7 +4,7 @@
 #include <isr.h>
 #include <kernel.h>
 #include <kstdint.h>
-#include <scheduler.h>
+#include <kthread.h>
 
 uint32_t tick = 0;
 
