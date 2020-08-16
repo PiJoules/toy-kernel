@@ -53,7 +53,8 @@ inline void *PageAddr4M(uint32_t page) {
 
 constexpr size_t kNumPageDirEntries = 1024;
 
-void InitializePaging(uint32_t high_mem, bool pages_4K);
+// FIXME: Eventually remove the `framebuffer_addr` argument.
+void InitializePaging(uint32_t high_mem, bool pages_4K, uint32_t framebuffer_addr);
 
 // FIXME: Might be cleaner to just have 2 subclasses: one for 4K and one for 4M.
 class PageDirectory {
@@ -83,7 +84,14 @@ class PageDirectory {
     memset(getBitmap(), 0, getBitmapSize());
   }
 
+  PageDirectory *Clone() const;
+
  private:
+  // FIXME: We only need this so that we can reserve some physical pages before
+  // we add a page for graphics printing. Ideally, this would not be exposed to
+  // anyone.
+  friend void InitializePaging(uint32_t, bool, uint32_t);
+
   void setPageFrameUsed(size_t page_index) {
     assert(page_index < kNumPageDirEntries);
     getBitmap()[page_index / 8] |= (UINT32_C(1) << (page_index % 8));
@@ -126,6 +134,15 @@ class PageDirectory {
   // MB),
   // ...
   union {
+    // FIXME: The amount of physical memory we have should not be assumed here.
+    // Ideally, we would get this upper bound from multiboot (although that
+    // might not always be true; see
+    // https://stackoverflow.com/a/45549699/2775471). For multiboot
+    // specifically, using mem_upper will only return the end of the first
+    // contiguous chunk of memory up until the first memory hole. We should
+    // eventually switch to using the mmap_* fields which should be able to map
+    // all memory regions
+    // (https://wiki.osdev.org/Detecting_Memory_(x86)#Memory_Map_Via_GRUB).
     uint8_t physical_bitmap_4M_[kRamAs4MPages / 8];
     uint8_t physical_bitmap_4K_[kRamAs4KPages / 8];
   };

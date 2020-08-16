@@ -76,11 +76,14 @@ void kernel_main(const Multiboot *multiboot) {
   WriteF("framebuffer type: {}\n", Hex(multiboot->framebuffer_type));
   WriteF("physical framebuffer address: {}\n",
          Hex(multiboot->framebuffer_addr));
+  assert(multiboot->framebuffer_addr <= UINT32_MAX &&
+         "Framebuffer cannot fit in 32 bits.");
 
   {
     // Initialize stuff for the kernel to work.
     InitDescriptorTables();
-    InitializePaging(multiboot->mem_upper, /*pages_4K=*/true);
+    InitializePaging(multiboot->mem_upper, /*pages_4K=*/true,
+                     static_cast<uint32_t>(multiboot->framebuffer_addr));
     InitializeKernelHeap();
     InitTimer(50);
     InitScheduler();

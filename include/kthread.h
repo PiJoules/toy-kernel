@@ -44,7 +44,6 @@ struct Thread {
 
   // NOTE: These values are assigned in thread.s. Be sure to update that file if
   // these are ever changed.
-  // TODO: Remove any padding.
   struct regs_t {
     uint32_t esp, ebp, ebx, esi, edi, eflags;
     uint16_t ds, es, fs, gs;  // These must be 16-bit aligned.

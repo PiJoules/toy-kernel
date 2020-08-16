@@ -42,7 +42,7 @@ void HandlePageFault(registers_t *regs) {
 
 }  // namespace
 
-void InitializePaging(uint32_t high_mem_KB, bool pages_4K) {
+void InitializePaging(uint32_t high_mem_KB, bool pages_4K, uint32_t framebuffer_addr) {
   terminal::Write("Initializing paging...\n");
   RegisterInterruptHandler(14, HandlePageFault);
   uint32_t total_mem = high_mem_KB * 1024;
@@ -78,6 +78,7 @@ void InitializePaging(uint32_t high_mem_KB, bool pages_4K) {
   }
 
   // FIXME: Also need to map GFX memory here.
+  KernelPageDir.setPageFrameFree(PageIndex4M(framebuffer_addr));
 
   SwitchPageDirectory(KernelPageDir);
 
@@ -138,8 +139,7 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
   assert(vaddr_int % kPageSize4M == 0 &&
          "Attempting to map a virtual address that is not 4MB aligned");
 
-  // TODO: Assert that we are not mapping to an already used physical page.
-  // assert(!isPageFrameUsed(PageIndex4M(paddr_int)));
+  assert(!isPageFrameUsed(PageIndex4M(paddr_int)));
 
   uint32_t index = PageIndex4M(vaddr_int);
   uint32_t &page_table = pd_impl_[index];
