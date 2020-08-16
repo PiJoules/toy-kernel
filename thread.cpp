@@ -74,10 +74,8 @@ Thread::Thread(ThreadFunc func, void *arg, uint32_t *stack_allocation,
     auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
     *(--stack_bottom) = UINT32_C(0x23);  // User data segment | ring 3
     *(--stack_bottom) = current_stack_bottom;
-    regs.ss = 0x23;
     regs.ds = 0x23;
   } else {
-    regs.ss = 0x10;
     regs.ds = 0x10;
   }
 
@@ -254,6 +252,7 @@ void schedule(const registers_t *regs) {
     set_kernel_stack(reinterpret_cast<uint32_t>(thread->getEsp0StackPointer()));
 
   // Switch to the new thread.
+  CurrentThread = thread;
   if (first_thread_run && !jump_to_user) {
     switch_first_kernel_thread_run(thread);
   } else if (first_thread_run && jump_to_user) {

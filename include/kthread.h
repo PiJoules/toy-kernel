@@ -48,14 +48,15 @@ struct Thread {
   struct regs_t {
     uint32_t esp, ebp, ebx, esi, edi, eflags;
     uint16_t ds, es, fs, gs;  // These must be 16-bit aligned.
-    uint32_t __padding__, eip;
-    uint16_t cs, __padding2__;
-    uint32_t ss;
+    uint32_t eip;
+    uint16_t cs;  // 16-bit padding after this.
   } regs;
-  static_assert(sizeof(regs) == 48,
+  static_assert(sizeof(regs) == 40,
                 "Size of regs changed! If this is intended, be sure to also "
                 "update thread.s");
-  static_assert(offsetof(regs_t, eip) == 36);
+  static_assert(offsetof(regs_t, ds) == 24);
+  static_assert(offsetof(regs_t, eip) == 32);
+  static_assert(offsetof(regs_t, cs) == 36);
 
   void DumpRegs() const;
 
@@ -71,7 +72,7 @@ struct Thread {
 
   PageDirectory &getPageDirectory() const { return *pd_allocation; }
 
-  bool isUserThread() const { return regs.ss == kUserDataSegment; }
+  bool isUserThread() const { return regs.ds == kUserDataSegment; }
   bool isKernelThread() const { return !isUserThread(); }
 
   uint32_t *getStackPointer() const {

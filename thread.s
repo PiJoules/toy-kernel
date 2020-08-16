@@ -45,7 +45,6 @@
 .macro SWAP_THREADS
   // Set the new thread passed as an argument as the current thread.
   movl 4(%esp),%eax         // Get the new thread as the 1st arg (thread_t *)
-  movl %eax,(CurrentThread) // Set the current thread node to it.
 
   // Set the registers pased off values stored in the new thread.
   movl 0(%eax),%esp
@@ -66,11 +65,11 @@ switch_kernel_thread_run:
   SWAP_THREADS
   pushl 20(%eax) // eflags
 
-  mov 40(%eax), %cx
+  mov 36(%eax), %cx  // cs
   movzx %cx, %ecx
   push %ecx
 
-  pushl 36(%eax)
+  pushl 32(%eax)  // eip
   iret
 
   .global switch_first_kernel_thread_run
@@ -81,31 +80,19 @@ switch_first_kernel_thread_run:
   .global switch_first_user_thread_run
 switch_first_user_thread_run:
   SWAP_THREADS
-  movw $0x23, %cx
-  movw %cx, %ds
-  movw %cx, %es
-  movw %cx, %fs
-  movw %cx, %gs
   iret
 
   .globl switch_user_thread_run
 switch_user_thread_run:
   SWAP_THREADS
-  movw 24(%eax), %cx
-  mov %cx, %ds
-  mov %cx, %es
-  mov %cx, %fs
-  mov %cx, %gs
-
-  movzx %cx, %ecx
-  push %ecx // DS
+  push %ds  // DS/SS
 
   pushl 0(%eax)  // esp
   pushl 20(%eax) // eflags
 
-  mov 40(%eax), %cx
+  mov 36(%eax), %cx
   movzx %cx, %ecx
   push %ecx   // cs
 
-  pushl 36(%eax)  // eip
+  pushl 32(%eax)  // eip
   iret
