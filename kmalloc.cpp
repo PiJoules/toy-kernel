@@ -21,7 +21,7 @@ void *ksbrk_page(unsigned n) {
 
   auto *chunk = reinterpret_cast<MallocHeader *>(KernelHeap);
   for (unsigned i = 0; i < n; ++i) {
-    uint8_t *p_addr = GetKernelPageDirectory().NextFreePhysicalPage();
+    uint8_t *p_addr = GetPhysicalBitmap4M().NextFreePhysicalPage();
     assert(p_addr && "No free page frames available!");
 
     // Add PG_USER to allow user programs to read kernel heap

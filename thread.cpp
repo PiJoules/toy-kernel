@@ -56,6 +56,12 @@ Thread::Thread(ThreadFunc func, void *arg, uint32_t *stack_allocation,
          "The stack allocation must be 4 byte aligned.");
   uint32_t *stack_bottom = getStackPointer();
 
+  if (user) {
+    pd_allocation = GetKernelPageDirectory().Clone();
+  } else {
+    pd_allocation = &GetKernelPageDirectory();
+  }
+
   memset(&regs, 0, sizeof(regs));
 
   // When we are inside the thread function, the top of the stack will have the
@@ -104,6 +110,7 @@ Thread Thread::CreateUserProcess(ThreadFunc func, void *arg) {
 }
 
 Thread::~Thread() {
+  if (isUserThread()) pd_allocation->ReclaimPageDirRegion();
   kfree(stack_allocation);
   kfree(esp0_allocation);
 }
@@ -250,6 +257,11 @@ void schedule(const registers_t *regs) {
 
   if (jump_to_user)
     set_kernel_stack(reinterpret_cast<uint32_t>(thread->getEsp0StackPointer()));
+
+  // TODO: cr3 can only accept a physical address, but since we have paging
+  // enabled, we need to have a separate area where we can identity map page
+  // directories so we can refer to them here.
+  SwitchPageDirectory(thread->getPageDirectory());
 
   // Switch to the new thread.
   CurrentThread = thread;

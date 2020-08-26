@@ -1,12 +1,13 @@
 #include <Terminal.h>
 #include <isr.h>
+#include <knew.h>
 #include <kthread.h>
 #include <paging.h>
-#include <panic.h>
 
 namespace {
 
 PageDirectory KernelPageDir;
+PhysicalBitmap4M PhysicalBitmap;
 
 void HandlePageFault(registers_t *regs) {
   uint32_t faulting_addr;
@@ -40,9 +41,32 @@ void HandlePageFault(registers_t *regs) {
   PANIC("Page fault!");
 }
 
+constexpr size_t kNumPageDirs =
+    (PAGE_DIRECTORY_REGION_END - PAGE_DIRECTORY_REGION_START) / kPageDirSize;
+class PageDirRegionBitmap : public toy::BitArray<kNumPageDirs> {
+ public:
+  void *getAndUseNextFreeRegion() {
+    size_t bit;
+    assert(GetFirstZero(bit) && "No free pages in the page directory region");
+    setOne(bit);
+    uint8_t *start = reinterpret_cast<uint8_t *>(PAGE_DIRECTORY_REGION_START);
+    return start + kPageDirSize * bit;
+  }
+
+  void Reclaim(const PageDirectory *pd) {
+    assert(!pd->isKernelPageDir());
+    size_t addr = reinterpret_cast<size_t>(pd) - PAGE_DIRECTORY_REGION_START;
+    assert(addr % kPageDirSize == 0);
+    setZero(addr / kPageDirSize);
+  }
+};
+
+PageDirRegionBitmap PageDirRegion;
+
 }  // namespace
 
-void InitializePaging(uint32_t high_mem_KB, bool pages_4K, uint32_t framebuffer_addr) {
+void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
+                      uint32_t framebuffer_addr) {
   terminal::Write("Initializing paging...\n");
   RegisterInterruptHandler(14, HandlePageFault);
   uint32_t total_mem = high_mem_KB * 1024;
@@ -58,27 +82,26 @@ void InitializePaging(uint32_t high_mem_KB, bool pages_4K, uint32_t framebuffer_
   // value on how much memory we would like.
   assert(num_4M_pages >= 32 && "Expected at least 128 MB of memory available.");
 
-  if (pages_4K)
-    KernelPageDir.Init4KPages();
-  else
-    KernelPageDir.Init4MPages();
+  PhysicalBitmap.Clear();
   KernelPageDir.Clear();
+  PageDirRegion.Clear();
 
   // The first 128 MB are not used, but the rest of the physical memory is used.
   // In actuality, we only have access to 128 MB of memory, so we can just mark
   // it as used we don't accidentally access it again.
-  KernelPageDir.ReservePhysical(/*num_pages=*/32);  // 4 x 32 MB = 128 MB
+  PhysicalBitmap.ReservePhysical(/*num_pages=*/32);  // 4 x 32 MB = 128 MB
   uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB | PG_USER;
   // uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
 
-  // Pages reserved for the kernel (4MB - 20MB).
-  for (auto i = 1; i < 4; ++i) {
-    void *addr = reinterpret_cast<void *>(i * kPageSize4M);
-    KernelPageDir.AddPage(addr, addr, flags);
-  }
+  // Pages reserved for the kernel (4MB - 12MB).
+  KernelPageDir.AddPage(reinterpret_cast<void *>(KERNEL_START),
+                        reinterpret_cast<void *>(KERNEL_START), flags);
+  KernelPageDir.AddPage(reinterpret_cast<void *>(PAGE_DIRECTORY_REGION_START),
+                        reinterpret_cast<void *>(PAGE_DIRECTORY_REGION_START),
+                        flags);
 
-  // FIXME: Also need to map GFX memory here.
-  KernelPageDir.setPageFrameFree(PageIndex4M(framebuffer_addr));
+  // Also need to map GFX memory here.
+  PhysicalBitmap.setPageFrameFree(PageIndex4M(framebuffer_addr));
 
   SwitchPageDirectory(KernelPageDir);
 
@@ -106,12 +129,13 @@ void InitializePaging(uint32_t high_mem_KB, bool pages_4K, uint32_t framebuffer_
 }
 
 PageDirectory &GetKernelPageDirectory() { return KernelPageDir; }
+PhysicalBitmap4M &GetPhysicalBitmap4M() { return PhysicalBitmap; }
 
 void PageDirectory::RemovePage(void *vaddr) {
   assert(reinterpret_cast<uintptr_t>(vaddr) % kPageSize4M == 0 &&
          "Address is not 4MB aligned");
   uint32_t page = PageIndex4M(vaddr);
-  setPageFrameFree(page);
+  PhysicalBitmap.setPageFrameFree(page);
   pd_impl_[page] = 0;
   asm volatile("invlpg %0" ::"m"(vaddr));
 }
@@ -139,43 +163,36 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
   assert(vaddr_int % kPageSize4M == 0 &&
          "Attempting to map a virtual address that is not 4MB aligned");
 
-  assert(!isPageFrameUsed(PageIndex4M(paddr_int)));
+  assert(!PhysicalBitmap.isPageFrameUsed(PageIndex4M(paddr_int)));
 
   uint32_t index = PageIndex4M(vaddr_int);
-  uint32_t &page_table = pd_impl_[index];
-  assert((page_table & PG_PRESENT) != PG_PRESENT &&
-         "The page table entry for this virtual address is already assigned.");
+  uint32_t &pde = pd_impl_[index];
+  assert(
+      !(pde & PG_PRESENT) &&
+      "The page directory entry for this virtual address is already assigned.");
 
-  page_table = paddr_int | (PG_PRESENT | PG_4MB | PG_WRITE | flags);
+  pde = paddr_int | (PG_PRESENT | PG_4MB | PG_WRITE | flags);
 
-  setPageFrameUsed(PageIndex4M(paddr_int));
+  PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
 
   // Invalidate page in TLB.
   asm volatile("invlpg %0" ::"m"(v_addr));
 }
 
-uint8_t *PageDirectory::NextFreePhysicalPage() const {
-  for (unsigned byte = 0; byte < getBitmapSize(); ++byte) {
-    // Shortcut for checking if an 4MB chunks are available in this 32 MB chunk.
-    if (getBitmap()[byte] != 0xFF) {
-      // Check for a free 4MB chunk.
-      for (unsigned bit = 0; bit < CHAR_BIT; ++bit) {
-        // FIXME: We should not ignore the very first page. We only do this so
-        // we don't accidentally write over user memory, but we should be
-        // creating a separate page directory for that.
-        if (byte == 0 && bit == 0) continue;
-
-        if (!(getBitmap()[byte] & (UINT8_C(1) << bit))) {
-          uint32_t page_4MB = CHAR_BIT * byte + bit;
-          return reinterpret_cast<uint8_t *>(page_4MB * kPageSize4M);
-        }
-      }
-    }
-  }
-  PANIC("Memory is full!");
-  return nullptr;
-}
-
 void SwitchPageDirectory(PageDirectory &pd) {
   asm volatile("mov %0, %%cr3" ::"r"(pd.get()));
 }
+
+PageDirectory *PageDirectory::Clone() const {
+  // Note that page directories created this way never need to be explicitly
+  // deleted.
+  auto *pd = new (PageDirRegion.getAndUseNextFreeRegion()) PageDirectory;
+  memcpy(pd->get(), get(), sizeof(pd_impl_));
+  return pd;
+}
+
+void PageDirectory::ReclaimPageDirRegion() const {
+  PageDirRegion.Reclaim(this);
+}
+
+bool PageDirectory::isKernelPageDir() const { return this == &KernelPageDir; }

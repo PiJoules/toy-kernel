@@ -59,6 +59,9 @@ void kernel_main(const Multiboot *multiboot) {
   WriteF("Upper memory (kB): {}\n", Hex(multiboot->mem_upper));
   WriteF("Kernel start:{} - end:{}\n", Hex(kPhysicalKernelAddrStart),
          Hex(kPhysicalKernelAddrEnd));
+  assert(kPhysicalKernelAddrEnd - kPhysicalKernelAddrStart <= kPageSize4M &&
+         "The kernel should be able to fir in a 4MB page");
+
   WriteF("Stack start: {}\n", &stack_start);
   WriteF("mods_count: {}\n", multiboot->mods_count);
   if (multiboot->mods_count) {

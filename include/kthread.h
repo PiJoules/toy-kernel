@@ -71,6 +71,7 @@ struct Thread {
 
   PageDirectory &getPageDirectory() const { return *pd_allocation; }
 
+  // FIXME: Rename to isUserProcess().
   bool isUserThread() const { return regs.ds == kUserDataSegment; }
   bool isKernelThread() const { return !isUserThread(); }
 

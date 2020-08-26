@@ -2,6 +2,7 @@
 #include <isr.h>
 #include <kassert.h>
 #include <kmalloc.h>
+#include <knew.h>
 #include <kstring.h>
 #include <kthread.h>
 #include <tests.h>
@@ -361,7 +362,50 @@ TEST(VirtualMethods) {
   ASSERT_EQ(dptr->get(), 1);
 }
 
-TEST_SUITE(CppLangFeatures) { RUN_TEST(VirtualMethods); }
+TEST(New) {
+  struct A {
+    int32_t x, y;
+  };
+
+  size_t heap_used = GetKernelHeapUsed();
+  A *a = new A;
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(A) + sizeof(MallocHeader));
+  delete a;
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used);
+
+  struct B {
+    int32_t x;
+    alignas(1024) int32_t arr[2];
+  };
+  B *b = new B;  // void *operator new(size_t size, std::align_val_t alignment)
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(B) + sizeof(MallocHeader));
+  delete b;
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used);
+
+  struct C {
+    uint8_t x, y;
+  };
+  void *buffer = kmalloc(sizeof(C));
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
+
+  C *c = new (buffer) C;
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
+
+  c->x = 1;
+  c->y = 2;
+  C *casted = static_cast<C *>(buffer);
+  ASSERT_EQ(casted->x, 1);
+  ASSERT_EQ(casted->y, 2);
+
+  // Freed after a normal delete.
+  delete c;
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used);
+}
+
+TEST_SUITE(CppLangFeatures) {
+  RUN_TEST(VirtualMethods);
+  RUN_TEST(New);
+}
 
 }  // namespace
 
