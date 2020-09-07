@@ -24,7 +24,7 @@ $ qemu-system-i386 -display curses -kernel kernel
 
 # Making a bootable cdrom image (preferred)
 $ ninja myos.iso
-$ qemu-system-i386 -cdrom myos.iso -display curses
+$ qemu-system-i386 -cdrom myos.iso
 
 # Exit QEMU with Alt+2, type quit, ENTER
 ```

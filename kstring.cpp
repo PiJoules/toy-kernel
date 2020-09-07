@@ -9,6 +9,9 @@ void *memset(void *ptr, int value, size_t size) {
   return ptr;
 }
 
+// TODO: We should do something similar to what glibc does and take advantage of
+// larger reads/stores by starting them at properly aligned addresses. All other
+// addresses should continue with a byte-by-byte read.
 void *memcpy(void *dst, const void *src, size_t num) {
   const auto *p_src = static_cast<const unsigned char *>(src);
   auto *p_dst = static_cast<unsigned char *>(dst);

@@ -110,7 +110,12 @@ void kernel_main(const Multiboot *multiboot) {
     WriteF("multiboot address: {}\n", multiboot);
     assert(multiboot < reinterpret_cast<void *>(USER_END));
 
+    void *usercode;
+    size_t size;
     {
+      // Read the user program and copy it. We need to use an identity map
+      // because the multiboot addresses could be within the first 4MB page of
+      // memory.
       IdentityMapRAII identity(nullptr);
 
       auto *usermod = multiboot->getModuleBegin() + 1;
@@ -118,12 +123,22 @@ void kernel_main(const Multiboot *multiboot) {
              Hex(usermod->mod_end));
       WriteF("usermod size: {}\n", usermod->getModuleSize());
 
-      size_t size = usermod->getModuleSize();
-      void *data = reinterpret_cast<void *>(USER_START);
-      memcpy(data, usermod->getModuleStart(), size);
-      Thread ut1 = Thread::CreateUserProcess((ThreadFunc)data, (void *)0xfeed);
-      ut1.Join();
+      size = usermod->getModuleSize();
+      usercode = kmalloc(size);
+      memcpy(usercode, usermod->getModuleStart(), size);
     }
+
+    {
+      // Actually create and run the user threads.
+      Thread ut1 =
+          Thread::CreateUserProcess((ThreadFunc)usercode, size, (void *)0xfeed);
+      Thread ut2 = Thread::CreateUserProcess((ThreadFunc)usercode, size,
+                                             (void *)0xfeed2);
+      ut1.Join();
+      ut2.Join();
+    }
+
+    kfree(usercode);
   }
 
   DestroyScheduler();

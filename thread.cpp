@@ -26,16 +26,6 @@ struct ThreadNode {
 ThreadNode *ReadyQueue = nullptr;
 const Thread *kMainKernelThread = nullptr;
 
-void thread_is_ready(Thread &t) {
-  assert(ReadyQueue);
-
-  // Create a new list item for the new thread.
-  ThreadNode *item = toy::kmalloc<ThreadNode>(1);
-  item->thread = &t;
-  item->next = ReadyQueue;
-  ReadyQueue = item;
-}
-
 }  // namespace
 
 // TODO: Rename this to distinguish it more from `exit_this_thread`.
@@ -46,23 +36,28 @@ Thread::Thread(ThreadFunc func, void *arg, bool user)
              reinterpret_cast<uint32_t *>(kmalloc(DEFAULT_THREAD_STACK_SIZE)),
              user) {}
 
+// The main thread does not need to allocate a stack.
+Thread::Thread()
+    : id_(next_tid++),
+      state_(RUNNING),
+      first_run_(false),
+      pd_allocation(GetKernelPageDirectory()) {
+  memset(&regs_, 0, sizeof(regs_));
+}
+
 Thread::Thread(ThreadFunc func, void *arg, uint32_t *stack_allocation,
                bool user)
-    : id(next_tid++),
-      state(RUNNING),
-      first_run(true),
-      stack_allocation(stack_allocation) {
+    : id_(next_tid++),
+      state_(RUNNING),
+      first_run_(true),
+      stack_allocation(stack_allocation),
+      pd_allocation(user ? *GetKernelPageDirectory().Clone()
+                         : GetKernelPageDirectory()) {
+  memset(&regs_, 0, sizeof(regs_));
+
   assert(reinterpret_cast<uintptr_t>(stack_allocation) % 4 == 0 &&
          "The stack allocation must be 4 byte aligned.");
   uint32_t *stack_bottom = getStackPointer();
-
-  if (user) {
-    pd_allocation = GetKernelPageDirectory().Clone();
-  } else {
-    pd_allocation = &GetKernelPageDirectory();
-  }
-
-  memset(&regs, 0, sizeof(regs));
 
   // When we are inside the thread function, the top of the stack will have the
   // thread_exit (representing the return address), followed by the first
@@ -80,49 +75,65 @@ Thread::Thread(ThreadFunc func, void *arg, uint32_t *stack_allocation,
     auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
     *(--stack_bottom) = UINT32_C(0x23);  // User data segment | ring 3
     *(--stack_bottom) = current_stack_bottom;
-    regs.ds = 0x23;
+    getRegs().ds = 0x23;
   } else {
-    regs.ds = 0x10;
+    getRegs().ds = 0x10;
   }
 
   *(--stack_bottom) = UINT32_C(0x202);  // Interrupts enabled
 
   if (user) {
     *(--stack_bottom) = UINT32_C(0x1B);  // User code segment | ring 3
-    regs.cs = 0x1b;
+    getRegs().cs = 0x1b;
   } else {
     *(--stack_bottom) = UINT32_C(0x08);  // Kernel code segment
-    regs.cs = 0x08;
+    getRegs().cs = 0x08;
   }
 
   *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
 
-  regs.esp = reinterpret_cast<uint32_t>(stack_bottom);
-  regs.eflags = 0x202;  // Interrupts enabled.
+  getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
 
   if (user) esp0_allocation = toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE);
 
-  thread_is_ready(*this);
+  assert(ReadyQueue);
+
+  // Create a new list item for the new thread.
+  ThreadNode *item = toy::kmalloc<ThreadNode>(1);
+  item->thread = this;
+  item->next = ReadyQueue;
+  ReadyQueue = item;
 }
 
+// RVO guarantees that the destructor will not be called multiple times for
+// these functions that return and create threads.
 Thread Thread::CreateUserProcess(ThreadFunc func, void *arg) {
   return Thread(func, arg, /*user=*/true);
 }
 
+Thread Thread::CreateUserProcess(ThreadFunc func, size_t codesize, void *arg) {
+  Thread t = CreateUserProcess(func, arg);
+  assert(codesize && "Expected a non-zero size for user code");
+  t.userfunc_ = func;
+  t.usercode_size_ = codesize;
+  return t;
+}
+
 Thread::~Thread() {
-  if (isUserThread()) pd_allocation->ReclaimPageDirRegion();
+  if (this != GetMainKernelThread()) Join();
+  if (isUserThread()) pd_allocation.ReclaimPageDirRegion();
   kfree(stack_allocation);
   kfree(esp0_allocation);
 }
 
 void Thread::Join() {
-  while (this->state != COMPLETED) {}
+  while (this->state_ != COMPLETED) {}
 }
 
 void thread_exit() {
   DisableInterrupts();
 
-  CurrentThread->state = COMPLETED;
+  CurrentThread->state_ = COMPLETED;
 
   // Remove this thread then switch to another.
   schedule(nullptr);
@@ -131,37 +142,19 @@ void thread_exit() {
 
 void exit_this_thread() { thread_exit(); }
 
-void Thread::DumpRegs() const {
-  terminal::WriteF("edi: {}\n", terminal::Hex(regs.edi));
-  terminal::WriteF("esi: {}\n", terminal::Hex(regs.esi));
-  terminal::WriteF("eip: {}\n", terminal::Hex(regs.eip));
-  terminal::WriteF("ebp: {}\n", terminal::Hex(regs.ebp));
-  terminal::WriteF("ds: {}\n", terminal::Hex(regs.ds));
-}
-
 const Thread *GetMainKernelThread() { return kMainKernelThread; }
 
 const Thread *GetCurrentThread() { return CurrentThread; }
 
-extern "C" void switch_kernel_thread_run(Thread *);
-extern "C" void switch_first_kernel_thread_run(Thread *);
-extern "C" void switch_first_user_thread_run(Thread *);
-extern "C" void switch_user_thread_run(Thread *);
+extern "C" void switch_kernel_thread_run(Thread::regs_t *);
+extern "C" void switch_first_kernel_thread_run(Thread::regs_t *);
+extern "C" void switch_first_user_thread_run(Thread::regs_t *);
+extern "C" void switch_user_thread_run(Thread::regs_t *);
 
 void InitScheduler() {
   assert(!ReadyQueue && !CurrentThread && !kMainKernelThread &&
          "This function should not be called twice.");
-  CurrentThread = toy::kmalloc<Thread>(1);
-  memset(CurrentThread, 0, sizeof(Thread));
-  CurrentThread->id = next_tid++;
-  CurrentThread->state = RUNNING;
-  CurrentThread->first_run = false;
-
-  // The main thread does not need to allocate a stack.
-  CurrentThread->stack_allocation = nullptr;
-
-  CurrentThread->pd_allocation = &GetKernelPageDirectory();
-
+  CurrentThread = new Thread;
   kMainKernelThread = CurrentThread;
 
   ReadyQueue = toy::kmalloc<ThreadNode>(1);
@@ -208,27 +201,27 @@ void schedule(const registers_t *regs) {
       assert(esp[6] == 0x23);
     }
 
-    CurrentThread->regs.ebp = regs->ebp;
-    CurrentThread->regs.eip = regs->eip;
-    CurrentThread->regs.cs = static_cast<uint16_t>(regs->cs);
-    CurrentThread->regs.eflags = regs->eflags;
+    CurrentThread->getRegs().ebp = regs->ebp;
+    CurrentThread->getRegs().eip = regs->eip;
+    CurrentThread->getRegs().cs = static_cast<uint16_t>(regs->cs);
+    CurrentThread->getRegs().eflags = regs->eflags;
 
-    CurrentThread->regs.esp = adjusted_esp;
+    CurrentThread->getRegs().esp = adjusted_esp;
 
-    CurrentThread->regs.ebx = regs->ebx;
-    CurrentThread->regs.esi = regs->esi;
-    CurrentThread->regs.edi = regs->edi;
-    CurrentThread->regs.ds = static_cast<uint16_t>(regs->ds);
-    CurrentThread->regs.es = static_cast<uint16_t>(regs->ds);
-    CurrentThread->regs.fs = static_cast<uint16_t>(regs->ds);
-    CurrentThread->regs.gs = static_cast<uint16_t>(regs->ds);
+    CurrentThread->getRegs().ebx = regs->ebx;
+    CurrentThread->getRegs().esi = regs->esi;
+    CurrentThread->getRegs().edi = regs->edi;
+    CurrentThread->getRegs().ds = static_cast<uint16_t>(regs->ds);
+    CurrentThread->getRegs().es = static_cast<uint16_t>(regs->ds);
+    CurrentThread->getRegs().fs = static_cast<uint16_t>(regs->ds);
+    CurrentThread->getRegs().gs = static_cast<uint16_t>(regs->ds);
   }
 
-  bool first_thread_run = thread->first_run;
-  thread->first_run = false;
+  bool first_thread_run = thread->first_run_;
+  thread->first_run_ = false;
   bool jump_to_user = thread->isUserThread();
 
-  if (!first_thread_run) assert(thread->regs.eip);
+  if (!first_thread_run) assert(thread->getRegs().eip);
 
   if (!regs) {
     assert(CurrentThread != kMainKernelThread);
@@ -258,21 +251,32 @@ void schedule(const registers_t *regs) {
   if (jump_to_user)
     set_kernel_stack(reinterpret_cast<uint32_t>(thread->getEsp0StackPointer()));
 
-  // TODO: cr3 can only accept a physical address, but since we have paging
-  // enabled, we need to have a separate area where we can identity map page
-  // directories so we can refer to them here.
   SwitchPageDirectory(thread->getPageDirectory());
+
+  if (first_thread_run && jump_to_user && thread->ShouldCopyUsercode()) {
+    // FIXME: We skip the first 4MB because we could still need to read
+    // stuff that multiboot inserted in the first 4MB page. Starting from 0
+    // here could lead to overwriting that multiboot data. We should
+    // probably copy that data somewhere else after paging is enabled.
+    thread->getPageDirectory().AddPage(
+        USER_START, GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1),
+        PG_USER);
+    memcpy(reinterpret_cast<void *>(USER_START),
+           reinterpret_cast<void *>(thread->userfunc_), thread->usercode_size_);
+  }
+
+  Thread::regs_t *thread_regs = &thread->getRegs();
 
   // Switch to the new thread.
   CurrentThread = thread;
   if (first_thread_run && !jump_to_user) {
-    switch_first_kernel_thread_run(thread);
+    switch_first_kernel_thread_run(thread_regs);
   } else if (first_thread_run && jump_to_user) {
-    switch_first_user_thread_run(thread);
+    switch_first_user_thread_run(thread_regs);
   } else if (!first_thread_run && jump_to_user) {
-    switch_user_thread_run(thread);
+    switch_user_thread_run(thread_regs);
   } else {
-    switch_kernel_thread_run(thread);
+    switch_kernel_thread_run(thread_regs);
   }
   PANIC("Should've switched to a different thread");
 }
@@ -280,6 +284,6 @@ void schedule(const registers_t *regs) {
 void DestroyScheduler() {
   assert(ReadyQueue && !ReadyQueue->next &&
          "Expected only the main thread to be left.");
-  kfree(ReadyQueue->thread);
+  delete ReadyQueue->thread;
   kfree(ReadyQueue);
 }

@@ -35,9 +35,12 @@
 #define PG_USER 0x00000004
 #define PG_4MB 0x00000080
 
-constexpr unsigned kPageSize4M = 0x00400000;
-constexpr unsigned kRamAs4MPages = 0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB
-constexpr unsigned kRamAs4KPages =
+constexpr uint8_t kPageFaultInterrupt = 14;
+
+constexpr uint32_t kPageMask4M = ~UINT32_C(0x3FFFFF);
+constexpr uint32_t kPageSize4M = 0x00400000;
+constexpr uint32_t kRamAs4MPages = 0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB
+constexpr uint32_t kRamAs4KPages =
     0x100000;  // Tofal RAM = 0x100000 x 4 KB = 4 GB
 
 constexpr uint32_t PageIndex4M(uint32_t addr) { return addr >> 22; }
@@ -81,25 +84,66 @@ void InitializePaging(uint32_t high_mem, bool pages_4K,
 // (https://wiki.osdev.org/Detecting_Memory_(x86)#Memory_Map_Via_GRUB).
 class PhysicalBitmap4M : public toy::BitArray<kRamAs4MPages> {
  public:
-  void setPageFrameUsed(size_t page_index) { setOne(page_index); }
+  void setPageFrameUsed(size_t page_index) {
+    Ref(page_index);
+    setOne(page_index);
+  }
 
-  void setPageFrameFree(size_t page_index) { setZero(page_index); }
+  void setPageFrameFree(size_t page_index) {
+    Unref(page_index);
+    if (refs_[page_index] == 0) setZero(page_index);
+  }
 
   bool isPageFrameUsed(size_t page_index) const { return isSet(page_index); }
 
   /**
    * Specify the number of pages of physical memory available.
    */
-  void ReservePhysical(size_t num_pages) { Reserve(num_pages); }
+  void ReservePhysical(size_t num_pages) {
+    Reserve(num_pages);
+    for (; num_pages < kRamAs4MPages; ++num_pages) Ref(num_pages);
+  }
 
-  uint8_t *NextFreePhysicalPage() const {
+  uint8_t *NextFreePhysicalPage(size_t start = 0) const {
     size_t page_4MB;
-    // FIXME: We should not ignore the very first page. We only do this so
-    // we don't accidentally write over user memory, but we should be
-    // creating a separate page directory for that.
-    assert(GetFirstZero(page_4MB, /*start=*/1) && "Memory is full!");
+    assert(GetFirstZero(page_4MB, start) && "Memory is full!");
     return reinterpret_cast<uint8_t *>(page_4MB * kPageSize4M);
   }
+
+  void Ref(size_t page_index) { ++(refs_[page_index]); }
+
+  void Unref(size_t page_index) {
+    auto &ref = refs_[page_index];
+    assert(ref && "Attempting to unref a page that has no references");
+    --ref;
+  }
+
+  auto getRefs(size_t page_index) const { return refs_[page_index]; }
+
+ private:
+  // Whenever we clone a page directory, we also duplicate references to page
+  // indexes for physical memory. If we destroy a page directory that was the
+  // forst to map a specific physical page, that phsyical page should be made
+  // available again. In order to keep track of the number of references each
+  // physical page has, we can just ref-count the number of page directories
+  // that reference it.
+  //
+  // Note that (ideally) we would have one reference/cloned page directory per
+  // new process, which is when a new page directory is required for a new
+  // address space. But technically, we can have a new reference every time we
+  // call PageDirectory::Clone(). Therefore, the number of references to a
+  // specific physical page can technically be infinite, but at the bare
+  // minimum, the refcount should be able to hold the maximum number of page
+  // directories we allow (that is, we have the maximum number of page
+  // directories available, each refering to the same page index).
+  //
+  // The number of refs we have should be the number of 4MB pages we have.
+  //
+  // FIXME: Should this be atomic?
+  uint16_t refs_[kRamAs4MPages];
+  static_assert(
+      ipow2<uint32_t>(sizeof(*refs_) * CHAR_BIT) >= kRamAs4MPages,
+      "Expected to fit at least one reference for each possible 4MB page.");
 };
 
 // FIXME: Might be cleaner to just have 2 subclasses: one for 4K and one for 4M.
@@ -108,7 +152,10 @@ class PageDirectory {
   uint32_t *get() { return pd_impl_; }
   const uint32_t *get() const { return pd_impl_; }
 
-  // Map virtual memory to physical memory.
+  // Map unmapped virtual memory to available physical memory.
+  //
+  // TODO: Might be useful to have a method that does mapping to previously
+  // mapped physical memory. This could be useful for shared memory.
   void AddPage(void *v_addr, const void *p_addr, uint8_t flags);
 
   void RemovePage(void *vaddr);
@@ -118,6 +165,7 @@ class PageDirectory {
   PageDirectory *Clone() const;
   bool isKernelPageDir() const;
   void ReclaimPageDirRegion() const;
+  static bool isPhysicalFree(uint32_t page_index);
 
  private:
   alignas(kPageDirAlignment) uint32_t pd_impl_[kNumPageDirEntries];

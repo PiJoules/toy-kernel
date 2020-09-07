@@ -39,9 +39,9 @@ void DumpRegisters(const registers_t *regs) {
   if (GetCurrentThread() == GetMainKernelThread()) {
     terminal::Write("main kernel thread");
   } else if (user) {
-    terminal::WriteF("user thread {}", GetCurrentThread()->id);
+    terminal::WriteF("user thread {}", GetCurrentThread()->getID());
   } else {
-    terminal::WriteF("kernel thread {}", GetCurrentThread()->id);
+    terminal::WriteF("kernel thread {}", GetCurrentThread()->getID());
   }
   terminal::WriteF(": {}\n", Hex(regs->int_no));
 

@@ -21,7 +21,11 @@ void *ksbrk_page(unsigned n) {
 
   auto *chunk = reinterpret_cast<MallocHeader *>(KernelHeap);
   for (unsigned i = 0; i < n; ++i) {
-    uint8_t *p_addr = GetPhysicalBitmap4M().NextFreePhysicalPage();
+    // FIXME: We skip the first 4MB because we could still need to read stuff
+    // that multiboot inserted in the first 4MB page. Starting from 0 here could
+    // lead to overwriting that multiboot data. We should probably copy that
+    // data somewhere else after paging is enabled.
+    uint8_t *p_addr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
     assert(p_addr && "No free page frames available!");
 
     // Add PG_USER to allow user programs to read kernel heap

@@ -9,6 +9,14 @@
 
 namespace {
 
+TEST(IntegerPower) {
+  for (uint32_t p = 0, expected = 1; p < 31; ++p, expected <<= 1) {
+    ASSERT_EQ(ipow2<uint32_t>(p), expected);
+  }
+}
+
+TEST_SUITE(KernelFunctions) { RUN_TEST(IntegerPower); }
+
 TEST(Memset) {
   size_t size = 10;
   char buffer[size];
@@ -226,6 +234,13 @@ void func2(void *arg) {
   for (int i = 0; i < 200; ++i) ++(*x);
 }
 
+TEST(ThreadIDs) {
+  ASSERT_EQ(GetMainKernelThread()->getID(), 0);
+
+  // We are already in the main kernel thread.
+  ASSERT_EQ(GetCurrentThread()->getID(), 0);
+}
+
 TEST(SimpleThreads) {
   size_t stack_size = 256;
   uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
@@ -282,10 +297,81 @@ TEST(DefaultStackAllocation) {
   ASSERT_EQ(val3, 300);
 }
 
+TEST(JoinOnDestructor) {
+  uint32_t val = 0;
+  uint32_t val2 = 0;
+  volatile uint32_t val3 = 0;
+
+  {
+    Thread t(func, &val);
+    Thread t2(func2, &val2);
+    for (int i = 0; i < 300; ++i) ++val3;
+  }
+
+  ASSERT_EQ(val, 100);
+  ASSERT_EQ(val2, 200);
+  ASSERT_EQ(val3, 300);
+}
+
+TEST(UserThreads) {
+  uint32_t val = 0;
+  uint32_t val2 = 0;
+  Thread t = Thread::CreateUserProcess(func, &val);
+  Thread t2 = Thread::CreateUserProcess(func2, &val2);
+
+  ASSERT_NE(t.getPageDirectory().get(), t2.getPageDirectory().get());
+}
+
 TEST_SUITE(Threading) {
+  RUN_TEST(ThreadIDs);
   RUN_TEST(SimpleThreads);
   RUN_TEST(ThreadExit);
   RUN_TEST(DefaultStackAllocation);
+  RUN_TEST(JoinOnDestructor);
+  RUN_TEST(UserThreads);
+}
+
+TEST(PageFunctions) {
+  ASSERT_EQ(kPageSize4M & kPageMask4M, kPageSize4M);
+  ASSERT_EQ((kPageSize4M + 1) & kPageMask4M, kPageSize4M);
+  ASSERT_EQ((kPageSize4M * 2) & kPageMask4M, kPageSize4M * 2);
+  ASSERT_EQ((kPageSize4M - 1) & kPageMask4M, 0);
+}
+
+TEST(PagingTest) {
+  // We can just write to user here since it is not being used.
+  void *phys_addr = GetPhysicalBitmap4M().NextFreePhysicalPage();
+  uint32_t page_index = PageIndex4M(phys_addr);
+  void *virt_addr = (void *)0xA0000000;
+  ASSERT_TRUE(PageDirectory::isPhysicalFree(page_index));
+
+  auto &pd1 = *GetKernelPageDirectory().Clone();
+  auto &pd2 = *GetKernelPageDirectory().Clone();
+
+  ASSERT_NE(pd1.get(), pd2.get());
+  ASSERT_TRUE(PageDirectory::isPhysicalFree(page_index));
+
+  pd1.AddPage(virt_addr, phys_addr, PG_USER);
+  ASSERT_FALSE(PageDirectory::isPhysicalFree(page_index));
+
+  SwitchPageDirectory(pd1);
+
+  // Write enough data such that we can be confident that it doesn not match any
+  // uninitialized data that may exist at this address.
+  size_t n = 4;
+  uint8_t expected = 10;
+  memset(virt_addr, expected, n);
+  for (size_t i = 0; i < n; ++i) {
+    uint8_t val;
+    memcpy(&val, (uint8_t *)virt_addr, sizeof(uint8_t));
+    ASSERT_EQ(val, expected);
+  }
+
+  pd1.ReclaimPageDirRegion();
+  pd2.ReclaimPageDirRegion();
+  SwitchPageDirectory(GetKernelPageDirectory());
+
+  ASSERT_TRUE(PageDirectory::isPhysicalFree(page_index));
 }
 
 void PageFaultHandler(registers_t *regs) {
@@ -296,37 +382,63 @@ void PageFaultHandler(registers_t *regs) {
   exit_this_thread();
 }
 
-void PageFaultThreadFunc(void *arg) {
-  auto *x = static_cast<uint32_t *>(arg);
-  *x = 9;
+struct PageFaultData {
+  uint32_t val;
+  uint32_t addr;
+};
 
-  uint32_t *ptr = (uint32_t *)0xA0000000;
+void PageFaultThreadFunc(void *arg) {
+  auto *x = static_cast<PageFaultData *>(arg);
+  x->val = 9;
+
+  uint32_t *ptr = (uint32_t *)x->addr;
   uint32_t do_page_fault = *ptr;
   (void)do_page_fault;
 
   // Should not reach this.
-  *x = 10;
+  x->val = 10;
 }
 
 TEST(PageFault) {
-  RegNum = 0;
-  uint8_t interrupt = 14;
-  isr_t old_handler = GetInterruptHandler(interrupt);
-  RegisterInterruptHandler(interrupt, PageFaultHandler);
+  isr_t old_handler = GetInterruptHandler(kPageFaultInterrupt);
+  RegisterInterruptHandler(kPageFaultInterrupt, PageFaultHandler);
 
-  uint32_t *stack = toy::kmalloc<uint32_t>(256);
+  PageFaultData x;
 
-  uint32_t x = 0;
-  Thread t(PageFaultThreadFunc, &x, stack);
+  {
+    // Test a page fault.
+    x.addr = 0xA0000000;
+    x.val = 0;
+    RegNum = 0;
 
-  t.Join();
+    Thread t(PageFaultThreadFunc, &x);
+    t.Join();
 
-  ASSERT_EQ(RegNum, 14u);
-  ASSERT_EQ(x, 9);
-  RegisterInterruptHandler(interrupt, old_handler);
+    ASSERT_EQ(RegNum, kPageFaultInterrupt);
+    ASSERT_EQ(x.val, 9);
+  }
+
+  {
+    // We should page fault at 0.
+    x.addr = 0;
+    x.val = 0;
+    RegNum = 0;
+
+    Thread t(PageFaultThreadFunc, &x);
+    t.Join();
+
+    ASSERT_EQ(RegNum, kPageFaultInterrupt);
+    ASSERT_EQ(x.val, 9);
+  }
+
+  RegisterInterruptHandler(kPageFaultInterrupt, old_handler);
 }
 
-TEST_SUITE(PageFaultSuite) { RUN_TEST(PageFault); }
+TEST_SUITE(Paging) {
+  RUN_TEST(PageFunctions);
+  RUN_TEST(PagingTest);
+  RUN_TEST(PageFault);
+}
 
 TEST(VirtualMethods) {
   struct A {
@@ -411,11 +523,12 @@ TEST_SUITE(CppLangFeatures) {
 
 void RunTests() {
   TestingFramework tests;
+  tests.RunSuite(KernelFunctions);
   tests.RunSuite(KernelString);
   tests.RunSuite(Printing);
   tests.RunSuite(Interrupts);
   tests.RunSuite(Malloc);
   tests.RunSuite(Threading);
-  tests.RunSuite(PageFaultSuite);
+  tests.RunSuite(Paging);
   tests.RunSuite(CppLangFeatures);
 }

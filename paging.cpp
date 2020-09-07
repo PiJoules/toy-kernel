@@ -33,7 +33,8 @@ void HandlePageFault(registers_t *regs) {
   if (GetCurrentThread() == GetMainKernelThread()) {
     terminal::Write("- Occurred in main kernel thread.\n");
   } else {
-    terminal::WriteF("- Occurred in thread: {}.\n", GetCurrentThread()->id);
+    terminal::WriteF("- Occurred in thread: {}.\n",
+                     GetCurrentThread()->getID());
   }
 
   DumpRegisters(regs);
@@ -68,7 +69,7 @@ PageDirRegionBitmap PageDirRegion;
 void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
                       uint32_t framebuffer_addr) {
   terminal::Write("Initializing paging...\n");
-  RegisterInterruptHandler(14, HandlePageFault);
+  RegisterInterruptHandler(kPageFaultInterrupt, HandlePageFault);
   uint32_t total_mem = high_mem_KB * 1024;
 
   // Note: Based on how we calculate this, if we are running in QEMU, this may
@@ -149,9 +150,9 @@ IdentityMapRAII::~IdentityMapRAII() {
   GetKernelPageDirectory().RemovePage(PageAddr4M(page_));
 }
 
-// Map virtual memory to physical memory.
+// Map unmapped virtual memory to available physical memory.
 void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
-  // With 4MB pages, bits 21 through 12 are reserved, so the the physical
+  // With 4MB pages, bits 31 through 12 are reserved, so the the physical
   // address must be 4MB aligned.
   uint32_t paddr_int = reinterpret_cast<uint32_t>(p_addr);
   assert(paddr_int % kPageSize4M == 0 &&
@@ -171,12 +172,16 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
       !(pde & PG_PRESENT) &&
       "The page directory entry for this virtual address is already assigned.");
 
-  pde = paddr_int | (PG_PRESENT | PG_4MB | PG_WRITE | flags);
+  pde = (paddr_int & kPageMask4M) | (PG_PRESENT | PG_4MB | PG_WRITE | flags);
 
   PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
 
   // Invalidate page in TLB.
   asm volatile("invlpg %0" ::"m"(v_addr));
+}
+
+bool PageDirectory::isPhysicalFree(uint32_t page_index) {
+  return !PhysicalBitmap.isPageFrameUsed(page_index);
 }
 
 void SwitchPageDirectory(PageDirectory &pd) {
@@ -188,10 +193,28 @@ PageDirectory *PageDirectory::Clone() const {
   // deleted.
   auto *pd = new (PageDirRegion.getAndUseNextFreeRegion()) PageDirectory;
   memcpy(pd->get(), get(), sizeof(pd_impl_));
+
+  // Increment refcount for all physical pages referenced at the time of this
+  // clone.
+  for (const uint32_t *pde = pd_impl_, *pd_end = pd_impl_ + kNumPageDirEntries;
+       pde != pd_end; ++pde) {
+    if (*pde & PG_PRESENT) {
+      uint32_t phys_page_index = PageIndex4M(*pde);
+      PhysicalBitmap.Ref(phys_page_index);
+    }
+  }
   return pd;
 }
 
 void PageDirectory::ReclaimPageDirRegion() const {
+  // Reclaim all physical pages allocated by this page directory.
+  for (const uint32_t *pde = pd_impl_, *pd_end = pd_impl_ + kNumPageDirEntries;
+       pde != pd_end; ++pde) {
+    if (*pde & PG_PRESENT) {
+      uint32_t phys_page_index = PageIndex4M(*pde);
+      PhysicalBitmap.setPageFrameFree(phys_page_index);
+    }
+  }
   PageDirRegion.Reclaim(this);
 }
 

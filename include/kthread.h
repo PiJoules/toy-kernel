@@ -26,6 +26,7 @@ using ThreadFunc = void (*)(void *);
 constexpr uint32_t kKernelDataSegment = 0x10;
 constexpr uint32_t kUserDataSegment = 0x23;
 
+// TODO: This represents a kernel thread, so we should rename this KernelThread.
 struct Thread {
   Thread(ThreadFunc func, void *arg, bool user = false);
 
@@ -39,6 +40,7 @@ struct Thread {
          bool user = false);
 
   static Thread CreateUserProcess(ThreadFunc func, void *arg);
+  static Thread CreateUserProcess(ThreadFunc func, size_t codesize, void *arg);
 
   ~Thread();
 
@@ -49,30 +51,22 @@ struct Thread {
     uint16_t ds, es, fs, gs;  // These must be 16-bit aligned.
     uint32_t eip;
     uint16_t cs;  // 16-bit padding after this.
-  } regs;
-  static_assert(sizeof(regs) == 40,
+  };
+  static_assert(sizeof(regs_t) == 40,
                 "Size of regs changed! If this is intended, be sure to also "
                 "update thread.s");
   static_assert(offsetof(regs_t, ds) == 24);
   static_assert(offsetof(regs_t, eip) == 32);
   static_assert(offsetof(regs_t, cs) == 36);
 
-  void DumpRegs() const;
+  const regs_t &getRegs() const { return regs_; }
+  regs_t &getRegs() { return regs_; }
+  uint32_t getID() const { return id_; }
 
-  uint32_t id;  // Thread ID.
-  volatile ThreadState state;
-  bool first_run;
-
-  // These should be null for the main kernel thread.
-  uint32_t *stack_allocation = nullptr;
-  uint8_t *esp0_allocation = nullptr;
-
-  PageDirectory *pd_allocation = nullptr;
-
-  PageDirectory &getPageDirectory() const { return *pd_allocation; }
+  PageDirectory &getPageDirectory() const { return pd_allocation; }
 
   // FIXME: Rename to isUserProcess().
-  bool isUserThread() const { return regs.ds == kUserDataSegment; }
+  bool isUserThread() const { return getRegs().ds == kUserDataSegment; }
   bool isKernelThread() const { return !isUserThread(); }
 
   uint32_t *getStackPointer() const {
@@ -98,6 +92,34 @@ struct Thread {
   }
 
   void Join();
+
+  bool ShouldCopyUsercode() const { return userfunc_; }
+
+ private:
+  friend void InitScheduler();
+  friend void thread_exit();
+  friend void schedule(const registers_t *);
+
+  // This is used specifically by InitScheduler() for initializing the default
+  // kernel thread without needing to set anything on the default stack.
+  Thread();
+
+  const uint32_t id_;  // Task ID.
+
+  // This is volatile so we can access it each time in Join().
+  volatile ThreadState state_;
+  bool first_run_;
+
+  regs_t regs_;
+
+  // These should be null for the main kernel thread.
+  uint32_t *stack_allocation = nullptr;
+  uint8_t *esp0_allocation = nullptr;
+  PageDirectory &pd_allocation;
+
+  // Used for loading external user programs.
+  ThreadFunc userfunc_ = nullptr;
+  size_t usercode_size_;
 };
 
 void exit_this_thread();

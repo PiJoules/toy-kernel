@@ -9,8 +9,8 @@ void __assert(bool condition, const char *msg, const char *filename, int line,
   if (condition) return;
 
   asm volatile("cli");  // Disable interrupts.
-  terminal::WriteF("{}:{}: {}: Assertion `{}` failed.\nAborted", filename, line,
-                   pretty_func, msg);
+  terminal::WriteF("\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename,
+                   line, pretty_func, msg);
 
   // Halt by going into an infinite loop.
   LOOP_INDEFINITELY();

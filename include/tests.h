@@ -31,6 +31,16 @@ bool TestFailed = false;
     if (TestingTeardown) TestingTeardown();                     \
   }
 
+#define ASSERT_TRUE(val1)                                         \
+  {                                                               \
+    if (!AssertTrue(val1, STR(val1), __FILE__, __LINE__)) return; \
+  }
+
+#define ASSERT_FALSE(val1)                                         \
+  {                                                                \
+    if (!AssertFalse(val1, STR(val1), __FILE__, __LINE__)) return; \
+  }
+
 #define ASSERT_STREQ(s1, s2)                                                   \
   {                                                                            \
     if (!AssertStrEqual(s1, s2, STR(s1), STR(s2), __FILE__, __LINE__)) return; \
@@ -40,6 +50,12 @@ bool TestFailed = false;
   {                                                                         \
     if (!AssertEqual(val1, val2, STR(val1), STR(val2), __FILE__, __LINE__)) \
       return;                                                               \
+  }
+
+#define ASSERT_NE(val1, val2)                                                  \
+  {                                                                            \
+    if (!AssertNotEqual(val1, val2, STR(val1), STR(val2), __FILE__, __LINE__)) \
+      return;                                                                  \
   }
 
 class TestingFramework {
@@ -80,6 +96,26 @@ inline bool AssertStrEqual(const char *found, const char *expected,
   return false;
 }
 
+template <typename T1>
+bool AssertTrue(T1 found, const char *found_expr, const char *file, int line) {
+  if (found) return true;
+  terminal::WriteF("Expected true value at {}:{}\n", file, line);
+  terminal::WriteF("Found `{}` which is false\n", found_expr);
+  ++NumFailures;
+  TestFailed = true;
+  return false;
+}
+
+template <typename T1>
+bool AssertFalse(T1 found, const char *found_expr, const char *file, int line) {
+  if (!found) return true;
+  terminal::WriteF("Expected false value at {}:{}\n", file, line);
+  terminal::WriteF("Found `{}` which is true\n", found_expr);
+  ++NumFailures;
+  TestFailed = true;
+  return false;
+}
+
 template <typename T1, typename T2>
 bool AssertEqual(T1 found, T2 expected, const char *found_expr,
                  const char *expected_expr, const char *file, int line) {
@@ -88,6 +124,20 @@ bool AssertEqual(T1 found, T2 expected, const char *found_expr,
   terminal::WriteF("Found `{}` which is:\n", found_expr);
   terminal::WriteF("  {}\n\n", found);
   terminal::WriteF("Expected `{}` which is:\n", expected_expr);
+  terminal::WriteF("  {}\n\n", expected);
+  ++NumFailures;
+  TestFailed = true;
+  return false;
+}
+
+template <typename T1, typename T2>
+bool AssertNotEqual(T1 found, T2 expected, const char *found_expr,
+                    const char *expected_expr, const char *file, int line) {
+  if (found != expected) return true;
+  terminal::WriteF("Values are equal {}:{}\n", file, line);
+  terminal::WriteF("Found `{}` which is:\n", found_expr);
+  terminal::WriteF("  {}\n\n", found);
+  terminal::WriteF("Received `{}` which is:\n", expected_expr);
   terminal::WriteF("  {}\n\n", expected);
   ++NumFailures;
   TestFailed = true;
