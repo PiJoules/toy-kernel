@@ -34,6 +34,7 @@ static_assert(sizeof(uintptr_t) >= sizeof(char *), "");
 #define UINT8_C(x) (static_cast<uint8_t>(x))
 #define UINT16_C(x) (static_cast<uint16_t>(x))
 #define UINT32_C(x) (static_cast<uint32_t>(x))
+#define UINT64_C(x) (static_cast<uint64_t>(x))
 
 #define UINT8_MAX (255)
 #define UINT16_MAX (65535)

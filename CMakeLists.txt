@@ -6,13 +6,11 @@ set(KERNEL kernel)
 set(IMAGE myos.iso)
 set(LINK_FLAGS
   -m elf_i386
-  -T ${CMAKE_SOURCE_DIR}/link.ld)
+  -T ${CMAKE_SOURCE_DIR}/src/link.ld)
 set(FONT font.o)
 set(USER_PROGRAM user_program.bin)
 
-add_library(asm_objs STATIC boot.s gdt.s interrupt.s thread.s)
-target_compile_options(asm_objs
-  PRIVATE -target i686)
+add_subdirectory(src)
 
 # The object file provided by this will provided the symbols needed for fonts
 # when using graphics:
@@ -27,28 +25,6 @@ add_custom_target(${FONT} ALL
   COMMAND ${CMAKE_OBJCOPY} -O elf32-i386 -B i386 -I binary font.psf ${FONT}
   COMMENT Create font object file
   VERBATIM)
-
-add_library(cpp_objs STATIC
-  kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp terminal.cpp Timer.cpp
-  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp thread.cpp
-  syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
-  serial.cpp cxa_pure_virtual.cpp new.cpp)
-target_compile_options(cpp_objs
-  PRIVATE -I ${CMAKE_SOURCE_DIR}/include/
-  PRIVATE -target i386
-  PRIVATE -ffreestanding
-  PRIVATE -Wall
-  PRIVATE -Wextra
-  #PRIVATE -Werror
-  PRIVATE -Wconversion
-  PRIVATE -Wno-sign-compare
-  PRIVATE -Wno-sign-conversion
-  PRIVATE -fno-exceptions
-  PRIVATE -fno-rtti
-  PRIVATE -ftrivial-auto-var-init=pattern
-  PRIVATE -std=c++17
-  PRIVATE -UNDEBUG  # We keep all assert()s
-  PRIVATE -nostdlib)
 
 add_custom_target(${KERNEL} ALL
   COMMAND ${CMAKE_LINKER} ${LINK_FLAGS} -o ${KERNEL} --start-group $<TARGET_FILE:asm_objs> $<TARGET_FILE:cpp_objs> ${FONT} --end-group

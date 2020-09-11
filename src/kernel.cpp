@@ -108,7 +108,7 @@ void kernel_main(const Multiboot *multiboot) {
 
     // Test a user program loaded as a multiboot module.
     WriteF("multiboot address: {}\n", multiboot);
-    assert(multiboot < reinterpret_cast<void *>(USER_END));
+    assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
 
     void *usercode;
     size_t size;

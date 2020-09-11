@@ -2,7 +2,8 @@ OUTPUT_FORMAT("binary")    /* output flat binary */
 
 SECTIONS
 {
-  . = 0;                 /* relocate to address 0 */
+  /* This should be the same value as USER_START. */
+  . = 1024M;
 
   .text ALIGN(4):
   {

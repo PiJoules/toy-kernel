@@ -37,7 +37,7 @@ $ qemu-system-i386 -cdrom myos.iso
 ## Formatting
 
 ```
-$ clang-format -style=file -i  *.cpp *.c include/*.h
+$ clang-format -style=file -i  src/*.cpp *.c src/include/*.h
 ```
 
 ## TODOs + FIXMEs

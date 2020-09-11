@@ -6,16 +6,14 @@
 #include <panic.h>
 
 // Memory layout
-// [0MB   - 4MB)    Flat user programs
+// [0MB   - 4MB)    RESERVED
 // [4MB   - 8MB)    Kernel
 // [8MB   - 12MB)   Page directory region
 // [12MB  - 16MB)   FREE
 // [16MB  - 20MB)   GFX_MEMORY
 // [32MB  - 1GB)    KERNEL_HEAP
-// [1GB   - 4GB)    FREE
-#define USER_START 0x0
-#define USER_END 0x400000  // 4 MB
-#define KERNEL_START USER_END
+// [1GB   - 4GB)    Flat user programs
+#define KERNEL_START 0x400000
 #define KERNEL_END 0x800000                     // 8MB
 #define PAGE_DIRECTORY_REGION_START KERNEL_END  // 8MB
 #define PAGE_DIRECTORY_REGION_END 0xC00000      // 12MB
@@ -27,6 +25,8 @@
 #define GFX_MEMORY_END 0x1400000     // 20 MB
 #define KERN_HEAP_BEGIN 0x02000000   // 32 MB
 #define KERN_HEAP_END 0x40000000     // 1 GB
+#define USER_START UINT32_C(0x40000000)  // 1GB
+#define USER_END UINT64_C(0x100000000)  // 2GB
 
 #define PAGING_FLAG 0x80000000  // CR0 - bit 31
 #define PSE_FLAG 0x00000010     // CR4 - bit 4
