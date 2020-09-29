@@ -14,4 +14,6 @@ void *operator new(size_t size, std::align_val_t alignment) {
 
 void operator delete(void *ptr) { kfree(ptr); }
 
-void operator delete(void *ptr, [[maybe_unused]] std::align_val_t alignment) { kfree(ptr); }
+void operator delete(void *ptr, [[maybe_unused]] std::align_val_t alignment) {
+  kfree(ptr);
+}

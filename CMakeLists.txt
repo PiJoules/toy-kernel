@@ -35,12 +35,23 @@ add_custom_target(${KERNEL} ALL
 
 add_subdirectory(usersdk)
 
+find_package(Python3 COMPONENTS Interpreter)
+if (NOT ${Python3_Interpreter_FOUND})
+  message(FATAL_ERROR "Could not find python3 interpreter")
+endif()
+
 add_custom_target(${IMAGE}
   COMMAND mkdir -p isodir/boot/grub
+  COMMAND mkdir -p initrd/
   COMMAND cp ${KERNEL} isodir/boot/${KERNEL}
   COMMAND cp ${CMAKE_SOURCE_DIR}/grub.cfg isodir/boot/grub/grub.cfg
-  COMMAND cp ${CMAKE_SOURCE_DIR}/test.data isodir/boot/test.data
-  COMMAND cp usersdk/${USER_PROGRAM} isodir/boot/${USER_PROGRAM}
+
+  # Copy user programs + data
+  COMMAND cp ${CMAKE_SOURCE_DIR}/test.data initrd/
+  COMMAND cp usersdk/${USER_PROGRAM} initrd/${USER_PROGRAM}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
+  COMMAND cp initrd.vfs isodir/boot/initrd.vfs
+
   COMMAND grub-mkrescue -o ${IMAGE} isodir
   DEPENDS grub.cfg ${KERNEL} ${USER_PROGRAM}
   COMMENT Create cdrom image

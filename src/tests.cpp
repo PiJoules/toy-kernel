@@ -1,13 +1,26 @@
 #include <Terminal.h>
+#include <bitvector.h>
+#include <function_traits.h>
+#include <initializer_list.h>
 #include <isr.h>
+#include <iterable.h>
 #include <kassert.h>
 #include <kmalloc.h>
 #include <knew.h>
 #include <kstring.h>
 #include <kthread.h>
+#include <string.h>
 #include <tests.h>
+#include <unique.h>
+#include <vector.h>
 
 namespace {
+
+using toy::BitVector;
+using toy::MakeUnique;
+using toy::String;
+using toy::Unique;
+using toy::Vector;
 
 TEST(IntegerPower) {
   for (uint32_t p = 0, expected = 1; p < 31; ++p, expected <<= 1) {
@@ -211,13 +224,84 @@ TEST(Alignment) {
   kfree(x);
 }
 
+TEST(Realloc) {
+  size_t heap_used = GetKernelHeapUsed();
+  size_t init_size = 10;
+  void *ptr = kmalloc(init_size);
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used + 10 + sizeof(MallocHeader));
+
+  // Re-usable pointer for size 0 realloc.
+  ASSERT_EQ(krealloc(ptr, 0), nullptr);
+  auto *chunk = MallocHeader::FromPointer(ptr);
+  ASSERT_EQ(chunk->used, 1);
+  ASSERT_EQ(chunk->size, init_size + sizeof(MallocHeader));
+
+  // Same size allocation.
+  ASSERT_EQ(krealloc(ptr, init_size), ptr);
+
+  // Increased size. It may or may not be the same pointer though.
+  size_t newsize = 1024;
+  void *newptr = krealloc(ptr, newsize);
+  ASSERT_NE(newptr, ptr);
+  chunk = MallocHeader::FromPointer(ptr);
+  auto *chunk2 = MallocHeader::FromPointer(newptr);
+  ASSERT_EQ(chunk->used, 0);
+  ASSERT_EQ(chunk2->used, 1);
+  ASSERT_EQ(chunk2->size, newsize + sizeof(MallocHeader));
+
+  // Decrease size. This is a large enough decrease that the pointer may not
+  // change.
+  ptr = krealloc(newptr, init_size);
+  ASSERT_EQ(ptr, newptr);
+  ASSERT_EQ(chunk2->used, 1);
+  ASSERT_EQ(chunk2->size, init_size + sizeof(MallocHeader));
+
+  // Decrease enough such that it can't be split into two chunks. This will lead
+  // to a new pointer.
+  newptr = krealloc(ptr, init_size - 1);
+  ASSERT_NE(newptr, ptr);
+  chunk = MallocHeader::FromPointer(ptr);
+  ASSERT_EQ(chunk->used, 0);
+  chunk2 = MallocHeader::FromPointer(newptr);
+  ASSERT_EQ(chunk2->used, 1);
+  ASSERT_EQ(chunk2->size, init_size - 1 + sizeof(MallocHeader));
+
+  kfree(newptr);
+  ASSERT_EQ(heap_used, GetKernelHeapUsed());
+}
+
+TEST(ReallocDataCopied) {
+  size_t s = 10;
+  size_t s2 = 1000;
+  char *ptr = toy::kmalloc<char>(s);
+  memset(ptr, 'a', s);
+  char *ptr2 = toy::krealloc<char>(ptr, s2);
+  ASSERT_NE(ptr2, nullptr);
+  ASSERT_NE(ptr, ptr2);
+  for (int i = 0; i < s; ++i) ASSERT_EQ(ptr2[i], 'a');
+  kfree(ptr2);
+}
+
 TEST_SUITE(Malloc) {
   RUN_TEST(MinAllocation);
   RUN_TEST(MoreThanMinAllocation);
   RUN_TEST(MultipleAllocations);
   RUN_TEST(ThreadAllocation);
   RUN_TEST(Alignment);
+  RUN_TEST(Realloc);
+  RUN_TEST(ReallocDataCopied);
 }
+
+TEST(CallocTest) {
+  auto *ptr = reinterpret_cast<int *>(kcalloc(4, sizeof(int)));
+  for (int i = 0; i < 4; ++i) ASSERT_EQ(ptr[i], 0);
+  kfree(ptr);
+  ptr = toy::kcalloc<int>(4);
+  for (int i = 0; i < 4; ++i) ASSERT_EQ(ptr[i], 0);
+  kfree(ptr);
+}
+
+TEST_SUITE(Calloc) { RUN_TEST(CallocTest); }
 
 void func(void *arg) {
   // Ensure that we increment x 100 times instead of just adding 100.
@@ -519,6 +603,399 @@ TEST_SUITE(CppLangFeatures) {
   RUN_TEST(New);
 }
 
+TEST(PushBack) {
+  Vector<int> v;
+  ASSERT_TRUE(v.empty());
+  v.push_back(1);
+  ASSERT_EQ(v.size(), 1);
+  ASSERT_EQ(v[0], 1);
+  v.push_back(2);
+  v.push_back(3);
+  ASSERT_EQ(v.size(), 3);
+  ASSERT_EQ(v[1], 2);
+  ASSERT_EQ(v[2], 3);
+
+  Vector<int, /*InitCapacity=*/1> v2;
+  v2.push_back(1);
+  v2.push_back(10);  // Triggers reallocation.
+  ASSERT_EQ(v2.size(), 2);
+  ASSERT_EQ(v2[0], 1);
+  ASSERT_EQ(v2[1], 10);
+}
+
+struct S {
+  static int copy_ctor_calls;
+  S() {}
+  S(const S &) { ++copy_ctor_calls; }
+};
+int S::copy_ctor_calls = 0;
+
+TEST_SUITE(VectorRangeCtor) {
+  // Under capacity
+  int x[] = {1, 2, 3};
+  Vector<int, /*InitCapacity=*/8> v(x, x + 3);
+  ASSERT_EQ(v.size(), 3);
+  ASSERT_EQ(v[0], 1);
+  ASSERT_EQ(v[1], 2);
+  ASSERT_EQ(v[2], 3);
+
+  // More than capacity
+  Vector<int, 1> v2(x, x + 3);
+  ASSERT_EQ(v2.size(), 3);
+  ASSERT_EQ(v2[0], 1);
+  ASSERT_EQ(v2[1], 2);
+  ASSERT_EQ(v2[2], 3);
+
+  // Ensure constructors are called
+  S s[] = {S(), S(), S()};
+  Vector<S> v3(s, s + 3);
+  ASSERT_EQ(v2.size(), 3);
+  ASSERT_EQ(S::copy_ctor_calls, 3);
+}
+
+TEST(VectorElemDtors) {
+  int dtor_calls = 0;
+  struct S {
+    int &x;
+    S(int &x) : x(x) {}
+    S(const S &other) : x(other.x) {}
+    ~S() { ++x; }
+  };
+
+  S s(dtor_calls);
+  {
+    Vector<S> v;
+    v.push_back(s);
+  }
+  ASSERT_EQ(dtor_calls, 1);
+}
+
+TEST(VectorRange) {
+  int x[] = {0, 1, 2};
+  bool found[] = {false, false, false};
+  Vector<int> v(x, x + 3);
+  for (auto i : v) { found[i] = true; }
+  ASSERT_TRUE(found[0]);
+  ASSERT_TRUE(found[1]);
+  ASSERT_TRUE(found[2]);
+}
+
+TEST(VectorMove) {
+  size_t heap_used = GetKernelHeapUsed();
+
+  {
+    // Empty vector move.
+    Vector<Unique<int>> v;
+    Vector<Unique<int>> v2(toy::move(v));
+  }
+  ASSERT_EQ(heap_used, GetKernelHeapUsed());
+
+  {
+    // Handful of elements.
+    Vector<Unique<int>> v;
+    v.push_back(MakeUnique<int>(1));
+    v.push_back(MakeUnique<int>(2));
+    v.push_back(MakeUnique<int>(3));
+
+    Vector<Unique<int>> v2(toy::move(v));
+    ASSERT_TRUE(v.empty());
+    ASSERT_EQ(v2.size(), 3);
+
+    // Accesses to `v` are undefined.
+    ASSERT_EQ(*v2[0], 1);
+    ASSERT_EQ(*v2[1], 2);
+    ASSERT_EQ(*v2[2], 3);
+  }
+  ASSERT_EQ(heap_used, GetKernelHeapUsed());
+
+  {
+    // From a moved reference
+    Vector<Unique<int>> v;
+    v.push_back(MakeUnique<int>(1));
+    v.push_back(MakeUnique<int>(2));
+    v.push_back(MakeUnique<int>(3));
+
+    auto &vref = v;
+
+    Vector<Unique<int>> v2(toy::move(vref));
+    ASSERT_TRUE(v.empty());
+    ASSERT_TRUE(vref.empty());
+    ASSERT_EQ(v2.size(), 3);
+
+    // Accesses to `v` are undefined.
+    ASSERT_EQ(*v2[0], 1);
+    ASSERT_EQ(*v2[1], 2);
+    ASSERT_EQ(*v2[2], 3);
+  }
+  ASSERT_EQ(heap_used, GetKernelHeapUsed());
+}
+
+TEST_SUITE(VectorSuite) {
+  RUN_TEST(PushBack);
+  RUN_TEST(VectorRangeCtor);
+  RUN_TEST(VectorElemDtors);
+  RUN_TEST(VectorRange);
+  RUN_TEST(VectorMove);
+}
+
+[[maybe_unused]] float FreeFunc(int a, char b) { return a + b; }
+
+TEST(FunctionReturnType) {
+  {
+    using Traits = toy::FunctionTraits<decltype(FreeFunc)>;
+    static_assert(toy::is_same<Traits::return_type, float>::value, "");
+    static_assert(Traits::num_args == 2, "");
+    static_assert(toy::is_same<Traits::argument<0>::type, int>::value, "");
+    static_assert(toy::is_same<Traits::argument<1>::type, char>::value, "");
+  }
+
+  struct A {
+    int func(char) { return 0; }
+  };
+  {
+    using Traits = toy::FunctionTraits<decltype(&A::func)>;
+    static_assert(toy::is_same<Traits::return_type, int>::value, "");
+    static_assert(Traits::num_args == 2, "");
+    static_assert(toy::is_same<Traits::argument<0>::type, A &>::value, "");
+    static_assert(toy::is_same<Traits::argument<1>::type, char>::value, "");
+  }
+}
+
+TEST_SUITE(TypeTraits) { RUN_TEST(FunctionReturnType); }
+
+TEST(EnumerateIterator) {
+  Vector<int> v({1, 2, 3});
+  int i = 0;
+  for (auto p : toy::Iterable(v)) {
+    ++i;
+    ASSERT_EQ(p, i);
+  }
+  ASSERT_EQ(i, 3);
+
+  i = 0;
+  for (auto p : toy::Enumerate(v)) {
+    ASSERT_EQ(p.first, i);
+    ++i;
+    ASSERT_EQ(p.second, i);
+  }
+  ASSERT_EQ(i, 3);
+}
+
+TEST_SUITE(Iterators) { RUN_TEST(EnumerateIterator); }
+
+template <typename T>
+void CheckInitializerList(const T &l) {
+  ASSERT_EQ(l[0], 1);
+  ASSERT_EQ(l[1], 2);
+  ASSERT_EQ(l[2], 3);
+}
+
+TEST(InitializerListTest) {
+  // We can only have an implicit list-initialization to initializer_list
+  // conversion if the type is explicitly "std::initializer_list".
+  auto fn = [](std::initializer_list<int> l) { CheckInitializerList(l); };
+  fn({1, 2, 3});
+
+  // Check using directive.
+  using std::initializer_list;
+  auto fn2 = [](initializer_list<int> l) { CheckInitializerList(l); };
+  fn2({1, 2, 3});
+
+  // Check alias.
+  auto fn3 = [](toy::InitializerList<int> l) { CheckInitializerList(l); };
+  fn3({1, 2, 3});
+
+  toy::InitializerList<int> l({1, 2, 3});
+  CheckInitializerList(l);
+
+  toy::InitializerList<int> l2 = {1, 2, 3};
+  CheckInitializerList(l2);
+}
+
+TEST_SUITE(InitializerListSuite) { RUN_TEST(InitializerListTest); }
+
+TEST(UniqueTest) {
+  size_t heapused = GetKernelHeapUsed();
+  {
+    Unique<int> u;
+    ASSERT_FALSE(u);
+
+    Unique<int> u2(new int(1));
+    ASSERT_TRUE(u2);
+    ASSERT_EQ(*u2, 1);
+
+    // Assignment
+    u = toy::move(u2);
+    ASSERT_TRUE(u);
+    ASSERT_FALSE(u2);
+
+    int *i = u.release();
+    ASSERT_FALSE(u);
+    ASSERT_EQ(*i, 1);
+
+    // Swapping
+    Unique<int> u3(i);
+    ASSERT_EQ(*u3, 1);
+    Unique<int> u4(new int(4));
+    u3.swap(u4);
+    ASSERT_EQ(*u3, 4);
+    ASSERT_EQ(*u4, 1);
+
+    // Copy construction.
+    Unique<int> u5(toy::move(u4));
+    ASSERT_TRUE(u5);
+    ASSERT_FALSE(u4);
+    ASSERT_EQ(*u5, 1);
+  }
+
+  // Everything should be free'd afterwards.
+  ASSERT_EQ(GetKernelHeapUsed(), heapused);
+}
+
+TEST(DestructorCalled) {
+  bool called = false;
+  struct A {
+    bool &b_;
+    A(bool &b) : b_(b) {}
+    ~A() { b_ = true; }
+  };
+
+  {
+    // At normal scope exit.
+    Unique<A> a(new A(called));
+  }
+  ASSERT_TRUE(called);
+
+  called = false;
+  {
+    Unique<A> a(new A(called));
+    {
+      // Swapping.
+      bool junk;
+      Unique<A> b(new A(junk));
+
+      // Swap the pointers, so once `b` goes out of scope, `a`'s destructor will
+      // be called.
+      a.swap(b);
+    }
+    ASSERT_TRUE(called);
+  }
+
+  called = false;
+  {
+    Unique<A> a(new A(called));
+    {
+      // Moving.
+      bool junk;
+      Unique<A> b(new A(junk));
+
+      // Destructor for `b` is called after this move.
+      a = toy::move(b);
+      ASSERT_TRUE(called);
+    }
+  }
+
+  called = false;
+  {
+    Unique<A> a(new A(called));
+    {
+      // Copy constructing.
+      // Destructor for `a` is called after b exist scope.
+      Unique<A> b(toy::move(a));
+    }
+    ASSERT_TRUE(called);
+  }
+}
+
+TEST_SUITE(UniqueSuite) {
+  RUN_TEST(UniqueTest);
+  RUN_TEST(DestructorCalled);
+}
+
+TEST(StringTest) {
+  String s;
+  ASSERT_TRUE(s.empty());
+  s.push_back('c');
+  ASSERT_EQ(s[0], 'c');
+
+  s.push_back('a');
+  ASSERT_STREQ(s.c_str(), "ca");
+}
+
+TEST(StringConstruction) {
+  String s("abc");
+  ASSERT_EQ(s.size(), 3);
+  ASSERT_STREQ(s.c_str(), "abc");
+
+  String s2("abc", /*init_capacity=*/1);
+  ASSERT_EQ(s2.size(), 3);
+  ASSERT_STREQ(s2.c_str(), "abc");
+}
+
+TEST_SUITE(StringSuite) {
+  RUN_TEST(StringTest);
+  RUN_TEST(StringConstruction);
+}
+
+TEST(BitVectorTest) {
+  BitVector v;
+  ASSERT_TRUE(v.empty());
+
+  for (auto i = 0; i < 32; ++i) {
+    v.push_back(1);
+    ASSERT_EQ(v.size(), i + 1);
+    ASSERT_TRUE(v.get(i));
+    ASSERT_EQ((UINT64_C(1) << (i + 1)) - 1, v.getAs<uint64_t>());
+  }
+
+  ASSERT_EQ(v.size(), 32);
+  ASSERT_EQ(v.getAs<uint32_t>(), UINT32_MAX);
+
+  v.push_back(0);
+  ASSERT_EQ(v.size(), 33);
+  ASSERT_EQ(v.getAs<uint64_t>(), UINT32_MAX);
+  v.set(32, 0);
+  ASSERT_EQ(v.size(), 33);
+  ASSERT_EQ(v.getAs<uint64_t>(), UINT32_MAX);
+  v.set(32, 1);
+  ASSERT_EQ(v.getAs<uint64_t>(), (static_cast<uint64_t>(UINT32_MAX) << 1) + 1);
+
+  for (auto i = 33; i < 63; ++i) {
+    v.push_back(1);
+    ASSERT_EQ(v.size(), i + 1);
+    ASSERT_TRUE(v.get(i));
+    ASSERT_EQ((UINT64_C(1) << (i + 1)) - 1, v.getAs<uint64_t>());
+  }
+
+  ASSERT_EQ(v.size(), 63);
+  ASSERT_EQ(v.getAs<uint64_t>(), UINT64_MAX >> 1);
+
+  v.push_back(1);
+  ASSERT_EQ(v.size(), 64);
+  ASSERT_EQ(v.getAs<uint64_t>(), UINT64_MAX);
+
+  // Cannot fit into 64 bits anymore.
+  v.push_back(1);
+  ASSERT_EQ(v.size(), 65);
+
+  for (int i = 64; i >= 0; --i) {
+    ASSERT_TRUE(v.get(i));
+    v.set(i, 0);
+    ASSERT_FALSE(v.get(i));
+  }
+
+  ASSERT_EQ(v.size(), 65);
+
+  v.pop_back();
+  ASSERT_EQ(v.size(), 64);
+  ASSERT_EQ(v.getAs<uint64_t>(), 0);
+  v.pop_back();
+  v.push_back(1);
+  ASSERT_EQ(v.getAs<uint64_t>(), UINT64_C(1) << 63);
+}
+
+TEST_SUITE(BitVectorSuite) { RUN_TEST(BitVectorTest); }
+
 }  // namespace
 
 void RunTests() {
@@ -528,7 +1005,15 @@ void RunTests() {
   tests.RunSuite(Printing);
   tests.RunSuite(Interrupts);
   tests.RunSuite(Malloc);
+  tests.RunSuite(Calloc);
   tests.RunSuite(Threading);
   tests.RunSuite(Paging);
   tests.RunSuite(CppLangFeatures);
+  tests.RunSuite(VectorSuite);
+  tests.RunSuite(UniqueSuite);
+  tests.RunSuite(StringSuite);
+  tests.RunSuite(InitializerListSuite);
+  tests.RunSuite(Iterators);
+  tests.RunSuite(TypeTraits);
+  tests.RunSuite(BitVectorSuite);
 }

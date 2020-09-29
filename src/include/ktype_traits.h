@@ -243,6 +243,15 @@ struct is_void_ptr<T *>
     : enable_if<
           is_void<typename pointer_traits<T>::pointee_type>::value>::type {};
 
+template <typename T>
+struct is_lvalue_reference {
+  static constexpr bool value = false;
+};
+template <typename T>
+struct is_lvalue_reference<T &> {
+  static constexpr bool value = true;
+};
+
 }  // namespace toy
 
 #endif

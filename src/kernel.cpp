@@ -11,6 +11,7 @@
 #include <panic.h>
 #include <syscall.h>
 #include <tests.h>
+#include <vfs.h>
 
 using terminal::Hex;
 using terminal::Write;
@@ -110,23 +111,33 @@ void kernel_main(const Multiboot *multiboot) {
     WriteF("multiboot address: {}\n", multiboot);
     assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
 
-    void *usercode;
-    size_t size;
+    void *usercode = nullptr;
+    size_t size = 0;
     {
       // Read the user program and copy it. We need to use an identity map
       // because the multiboot addresses could be within the first 4MB page of
       // memory.
       IdentityMapRAII identity(nullptr);
 
-      auto *usermod = multiboot->getModuleBegin() + 1;
-      WriteF("usermod start: {} - {}\n", Hex(usermod->mod_start),
-             Hex(usermod->mod_end));
-      WriteF("usermod size: {}\n", usermod->getModuleSize());
+      assert(multiboot->mods_count && "Could not find initrd");
+      auto *moduleinfo = multiboot->getModuleBegin();
+      uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
+      uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
+      WriteF("vfs size: {}\n", moduleinfo->getModuleSize());
+      auto vfs = vfs::ParseVFS(modstart, modend);
+      vfs->Dump();
 
-      size = usermod->getModuleSize();
+      const vfs::Node *program = vfs->getFile("user_program.bin");
+      assert(program && "Could not find user_program.bin");
+
+      const vfs::File &file = program->AsFile();
+      size = file.contents.size();
+      terminal::WriteF("user_program.bin is {} bytes\n", size);
+
       usercode = kmalloc(size);
-      memcpy(usercode, usermod->getModuleStart(), size);
+      memcpy(usercode, file.contents.data(), size);
     }
+    assert(size && usercode && "Did not load the user program");
 
     {
       // Actually create and run the user threads.

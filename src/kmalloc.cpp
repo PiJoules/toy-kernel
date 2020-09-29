@@ -56,18 +56,16 @@ void *kmalloc(size_t size, uint32_t alignment) {
   size_t realsize = sizeof(MallocHeader) + size;
   MallocHeader *chunk = reinterpret_cast<MallocHeader *>(KERN_HEAP_BEGIN);
 
+  // See if a given chunk can hold a requested size with a given alignment. In
+  // some cases, a chunk can be unaligned at first, but still fit the size
+  // requested even if it is aligned by a certain amount. In this case, we can
+  // store the adjust amount for later.
+  //
   // TODO: Clean this up since it's hard to read.
   auto CanUseChunk = [realsize, alignment](const MallocHeader *chunk,
                                            size_t &adjust) {
     auto size = chunk->size;
     if (chunk->used || size < realsize) return false;
-
-    if (size > realsize) {
-      // We can potentially split this into chunks later, but only if both of
-      // the chunks can fit a new MallocHeader. Otherwise, we could potentially
-      // write over other data.
-      if (size < sizeof(MallocHeader) * 2) return false;
-    }
 
     // Check alignment.
     auto addr = reinterpret_cast<uintptr_t>(chunk) + sizeof(MallocHeader);
@@ -109,7 +107,7 @@ void *kmalloc(size_t size, uint32_t alignment) {
   if (adjust) {
     // This chunk has enough space, but we need to return an address somewhere
     // inside the chunk that's aligned properly. We will need to split this one
-    // into 1 unaligned chunk followed by 1 aligned chunk.
+    // into one unaligned chunk followed by one aligned chunk.
     auto *other = chunk->NextChunk(adjust);
     other->size = chunk->size - adjust;
 
@@ -147,6 +145,64 @@ void *kmalloc(size_t size, uint32_t alignment) {
   return ptr;
 }
 
+namespace {
+
+/**
+ * Perform a realloc by performing a malloc for the new size, copying over the
+ * data, and freeing the original.
+ */
+void *SlowRealloc(void *ptr, size_t size) {
+  auto *chunk = MallocHeader::FromPointer(ptr);
+  size_t oldsize = chunk->size - sizeof(MallocHeader);
+  void *newptr = kmalloc(size);
+  assert(newptr != ptr &&
+         "Somehow returned the same pointer. We should've already checked for "
+         "this.");
+  size_t cpysize = (size < oldsize) ? size : oldsize;
+  memcpy(newptr, ptr, cpysize);
+  kfree(ptr);
+  return newptr;
+}
+
+}  // namespace
+
+// Note that returning `nullptr` indicates that storage was not allocated and
+// the pointer initially passed is still dereferencable.
+void *krealloc(void *ptr, size_t size) {
+  auto ptr_int = reinterpret_cast<uintptr_t>(ptr);
+  assert(KERN_HEAP_BEGIN <= ptr_int && ptr_int < KERN_HEAP_END &&
+         "This address was not allocated on the heap");
+  if (size == 0) return nullptr;
+
+  auto *chunk = MallocHeader::FromPointer(ptr);
+  assert(chunk->used && "Cannot realloc an unmalloc'd pointer");
+
+  size_t realsize = size + sizeof(MallocHeader);
+
+  if (chunk->size == realsize)
+    // Size does not need to change.
+    return ptr;
+
+  if (chunk->size > realsize) {
+    // Requesting a size decrease. Check to see if we can split this chunk into
+    // two chunks. We can split into two if both chunks can hold at least a
+    // MallocHeader. Otherwise, we could quickly merge the leftovers into the
+    // next chunk if it is unused. This is primarily a shortcut.
+    if (chunk->size > realsize + sizeof(MallocHeader)) {
+      // Can split into two chunks.
+      auto *other = chunk->NextChunk(realsize);
+      other->size = chunk->size - realsize;
+      other->used = 1;
+
+      chunk->size = realsize;
+      KernelHeapUsed -= other->size;
+      return ptr;
+    }
+  }
+
+  return SlowRealloc(ptr, size);
+}
+
 void kfree(void *v_addr) {
   if (!v_addr) return;
 
@@ -157,13 +213,20 @@ void kfree(void *v_addr) {
          "Attempting to free more memory than was recorded");
   KernelHeapUsed -= chunk->size;
 
-  // Merge free block with next free block
+  // Merge free block with next free block.
   MallocHeader *other;
   while ((other = chunk->NextChunk()) &&
          other < reinterpret_cast<MallocHeader *>(KernelHeap) &&
          other->used == 0) {
     chunk->size += other->size;
   }
+}
+
+void *kcalloc(size_t num, size_t size) {
+  // TODO: Something better than this.
+  void *ptr = kmalloc(num * size);
+  memset(ptr, 0, num * size);
+  return ptr;
 }
 
 size_t GetKernelHeapUsed() { return KernelHeapUsed; }

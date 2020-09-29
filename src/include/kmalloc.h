@@ -8,7 +8,9 @@ constexpr size_t kMaxAlignment = 4;
 
 void *kmalloc(size_t size);
 void *kmalloc(size_t size, uint32_t alignment);
-void kfree(void *v_addr);
+void kfree(void *ptr);
+void *krealloc(void *ptr, size_t size);
+void *kcalloc(size_t num, size_t size);
 
 namespace toy {
 
@@ -19,13 +21,28 @@ T *kmalloc(size_t num_elems) {
   return reinterpret_cast<T *>(::kmalloc(num_elems * sizeof(T)));
 }
 
+template <typename T>
+T *krealloc(T *ptr, size_t num_elems) {
+  return reinterpret_cast<T *>(::krealloc(ptr, num_elems * sizeof(T)));
+}
+
+template <typename T>
+T *kcalloc(size_t num_elems) {
+  return reinterpret_cast<T *>(::kcalloc(num_elems, sizeof(T)));
+}
+
 }  // namespace toy
 
 void InitializeKernelHeap();
 size_t GetKernelHeapUsed();
 
 struct MallocHeader {
-  unsigned size : 31;  // The size includes the size of this header.
+  // The size includes the size of this header. This size may also not be the
+  // exact same size as the size requested (ie. it could be a little more than
+  // what was requested).
+  //
+  // USERS SHOULD NOT EXPECT `size` TO HOLD THE REQUESTED MALLOC SIZE.
+  unsigned size : 31;
   unsigned used : 1;
 
   static MallocHeader *FromPointer(void *ptr) {

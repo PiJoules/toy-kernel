@@ -512,4 +512,9 @@ void PrintFormatter(PutFunc put, char *str) {
   }
 }
 
+template <>
+void PrintFormatter(PutFunc put, decltype(nullptr)) {
+  Write(put, "<nullptr>");
+}
+
 }  // namespace terminal

@@ -259,8 +259,8 @@ void schedule(const registers_t *regs) {
     // here could lead to overwriting that multiboot data. We should
     // probably copy that data somewhere else after paging is enabled.
     thread->getPageDirectory().AddPage(
-        (void *)USER_START, GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1),
-        PG_USER);
+        (void *)USER_START,
+        GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1), PG_USER);
     memcpy(reinterpret_cast<void *>(USER_START),
            reinterpret_cast<void *>(thread->userfunc_), thread->usercode_size_);
   }

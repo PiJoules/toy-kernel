@@ -97,7 +97,8 @@ inline bool AssertStrEqual(const char *found, const char *expected,
 }
 
 template <typename T1>
-bool AssertTrue(T1 found, const char *found_expr, const char *file, int line) {
+bool AssertTrue(const T1 &found, const char *found_expr, const char *file,
+                int line) {
   if (found) return true;
   terminal::WriteF("Expected true value at {}:{}\n", file, line);
   terminal::WriteF("Found `{}` which is false\n", found_expr);
@@ -107,7 +108,8 @@ bool AssertTrue(T1 found, const char *found_expr, const char *file, int line) {
 }
 
 template <typename T1>
-bool AssertFalse(T1 found, const char *found_expr, const char *file, int line) {
+bool AssertFalse(const T1 &found, const char *found_expr, const char *file,
+                 int line) {
   if (!found) return true;
   terminal::WriteF("Expected false value at {}:{}\n", file, line);
   terminal::WriteF("Found `{}` which is true\n", found_expr);
@@ -117,7 +119,7 @@ bool AssertFalse(T1 found, const char *found_expr, const char *file, int line) {
 }
 
 template <typename T1, typename T2>
-bool AssertEqual(T1 found, T2 expected, const char *found_expr,
+bool AssertEqual(const T1 &found, const T2 &expected, const char *found_expr,
                  const char *expected_expr, const char *file, int line) {
   if (found == expected) return true;
   terminal::WriteF("Values are not equal {}:{}\n", file, line);
@@ -131,7 +133,7 @@ bool AssertEqual(T1 found, T2 expected, const char *found_expr,
 }
 
 template <typename T1, typename T2>
-bool AssertNotEqual(T1 found, T2 expected, const char *found_expr,
+bool AssertNotEqual(const T1 &found, const T2 &expected, const char *found_expr,
                     const char *expected_expr, const char *file, int line) {
   if (found != expected) return true;
   terminal::WriteF("Values are equal {}:{}\n", file, line);

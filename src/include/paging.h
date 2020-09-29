@@ -21,12 +21,12 @@
 // TODO: GFX virtual memory (which controls the screen for graphics mode) starts
 // at 16 MB, but we should also clearly mark where it ends.
 // NOTE: The kernel heap starts at 32 MB and ends at 1 GB.
-#define GFX_MEMORY_START 0x01000000  // 16 MB
-#define GFX_MEMORY_END 0x1400000     // 20 MB
-#define KERN_HEAP_BEGIN 0x02000000   // 32 MB
-#define KERN_HEAP_END 0x40000000     // 1 GB
+#define GFX_MEMORY_START 0x01000000      // 16 MB
+#define GFX_MEMORY_END 0x1400000         // 20 MB
+#define KERN_HEAP_BEGIN 0x02000000       // 32 MB
+#define KERN_HEAP_END 0x40000000         // 1 GB
 #define USER_START UINT32_C(0x40000000)  // 1GB
-#define USER_END UINT64_C(0x100000000)  // 2GB
+#define USER_END UINT64_C(0x100000000)   // 2GB
 
 #define PAGING_FLAG 0x80000000  // CR0 - bit 31
 #define PSE_FLAG 0x00000010     // CR4 - bit 4
