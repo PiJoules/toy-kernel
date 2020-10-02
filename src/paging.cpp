@@ -1,7 +1,7 @@
 #include <Terminal.h>
 #include <isr.h>
 #include <knew.h>
-#include <kthread.h>
+#include <ktask.h>
 #include <paging.h>
 
 namespace {
@@ -30,11 +30,10 @@ void HandlePageFault(registers_t *regs) {
 
   terminal::WriteF("- CPU was in {}\n", us ? "user-mode" : "supervisor mode");
 
-  if (GetCurrentThread() == GetMainKernelThread()) {
-    terminal::Write("- Occurred in main kernel thread.\n");
+  if (GetCurrentTask() == GetMainKernelTask()) {
+    terminal::Write("- Occurred in main kernel task.\n");
   } else {
-    terminal::WriteF("- Occurred in thread: {}.\n",
-                     GetCurrentThread()->getID());
+    terminal::WriteF("- Occurred in task: {}.\n", GetCurrentTask()->getID());
   }
 
   DumpRegisters(regs);

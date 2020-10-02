@@ -8,7 +8,7 @@
 #include <kmalloc.h>
 #include <knew.h>
 #include <kstring.h>
-#include <kthread.h>
+#include <ktask.h>
 #include <string.h>
 #include <tests.h>
 #include <unique.h>
@@ -187,8 +187,8 @@ TEST(MultipleAllocations) {
 }
 
 // This is a regression test to make sure I don't run into a bug in kmalloc that
-// I ran into one when allocating threads.
-TEST(ThreadAllocation) {
+// I ran into one when allocating tasks.
+TEST(TaskAllocation) {
   size_t size = 32;
 
   auto heap_used = GetKernelHeapUsed();
@@ -286,7 +286,7 @@ TEST_SUITE(Malloc) {
   RUN_TEST(MinAllocation);
   RUN_TEST(MoreThanMinAllocation);
   RUN_TEST(MultipleAllocations);
-  RUN_TEST(ThreadAllocation);
+  RUN_TEST(TaskAllocation);
   RUN_TEST(Alignment);
   RUN_TEST(Realloc);
   RUN_TEST(ReallocDataCopied);
@@ -318,14 +318,14 @@ void func2(void *arg) {
   for (int i = 0; i < 200; ++i) ++(*x);
 }
 
-TEST(ThreadIDs) {
-  ASSERT_EQ(GetMainKernelThread()->getID(), 0);
+TEST(TaskIDs) {
+  ASSERT_EQ(GetMainKernelTask()->getID(), 0);
 
-  // We are already in the main kernel thread.
-  ASSERT_EQ(GetCurrentThread()->getID(), 0);
+  // We are already in the main kernel task.
+  ASSERT_EQ(GetCurrentTask()->getID(), 0);
 }
 
-TEST(SimpleThreads) {
+TEST(SimpleTasks) {
   size_t stack_size = 256;
   uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
   uint32_t *stack2 = toy::kmalloc<uint32_t>(stack_size);
@@ -333,8 +333,8 @@ TEST(SimpleThreads) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Thread t(func, &val, stack);
-  Thread t2(func2, &val2, stack2);
+  Task t(func, &val, stack);
+  Task t2(func2, &val2, stack2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -349,16 +349,16 @@ TEST(SimpleThreads) {
 void func3(void *arg) {
   volatile auto *x = static_cast<uint32_t *>(arg);
   ++(*x);
-  exit_this_thread();
+  exit_this_task();
   ++(*x);
 }
 
-TEST(ThreadExit) {
+TEST(TaskExit) {
   size_t stack_size = 256;
   uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
 
   uint32_t x = 10;
-  Thread t(func3, &x, stack);
+  Task t(func3, &x, stack);
 
   t.Join();
   ASSERT_EQ(x, 11);
@@ -368,8 +368,8 @@ TEST(DefaultStackAllocation) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Thread t(func, &val);
-  Thread t2(func2, &val2);
+  Task t(func, &val);
+  Task t2(func2, &val2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -387,8 +387,8 @@ TEST(JoinOnDestructor) {
   volatile uint32_t val3 = 0;
 
   {
-    Thread t(func, &val);
-    Thread t2(func2, &val2);
+    Task t(func, &val);
+    Task t2(func2, &val2);
     for (int i = 0; i < 300; ++i) ++val3;
   }
 
@@ -397,22 +397,22 @@ TEST(JoinOnDestructor) {
   ASSERT_EQ(val3, 300);
 }
 
-TEST(UserThreads) {
+TEST(UserTasks) {
   uint32_t val = 0;
   uint32_t val2 = 0;
-  Thread t = Thread::CreateUserProcess(func, &val);
-  Thread t2 = Thread::CreateUserProcess(func2, &val2);
+  Task t = Task::CreateUserTask(func, &val);
+  Task t2 = Task::CreateUserTask(func2, &val2);
 
   ASSERT_NE(t.getPageDirectory().get(), t2.getPageDirectory().get());
 }
 
-TEST_SUITE(Threading) {
-  RUN_TEST(ThreadIDs);
-  RUN_TEST(SimpleThreads);
-  RUN_TEST(ThreadExit);
+TEST_SUITE(Tasking) {
+  RUN_TEST(TaskIDs);
+  RUN_TEST(SimpleTasks);
+  RUN_TEST(TaskExit);
   RUN_TEST(DefaultStackAllocation);
   RUN_TEST(JoinOnDestructor);
-  RUN_TEST(UserThreads);
+  RUN_TEST(UserTasks);
 }
 
 TEST(PageFunctions) {
@@ -463,7 +463,7 @@ void PageFaultHandler(registers_t *regs) {
 
   // Exit here or we will go back to the instruction that caused the page fault,
   // infinitely jumping back to this function.
-  exit_this_thread();
+  exit_this_task();
 }
 
 struct PageFaultData {
@@ -471,7 +471,7 @@ struct PageFaultData {
   uint32_t addr;
 };
 
-void PageFaultThreadFunc(void *arg) {
+void PageFaultTaskFunc(void *arg) {
   auto *x = static_cast<PageFaultData *>(arg);
   x->val = 9;
 
@@ -495,7 +495,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Thread t(PageFaultThreadFunc, &x);
+    Task t(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
@@ -508,7 +508,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Thread t(PageFaultThreadFunc, &x);
+    Task t(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
@@ -1006,7 +1006,7 @@ void RunTests() {
   tests.RunSuite(Interrupts);
   tests.RunSuite(Malloc);
   tests.RunSuite(Calloc);
-  tests.RunSuite(Threading);
+  tests.RunSuite(Tasking);
   tests.RunSuite(Paging);
   tests.RunSuite(CppLangFeatures);
   tests.RunSuite(VectorSuite);

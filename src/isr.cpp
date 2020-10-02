@@ -5,7 +5,7 @@
 #include <Terminal.h>
 #include <io.h>
 #include <isr.h>
-#include <kthread.h>
+#include <ktask.h>
 #include <paging.h>
 #include <panic.h>
 
@@ -33,15 +33,15 @@ void DumpRegisters(const registers_t *regs) {
     }
   }
 
-  bool user = GetCurrentThread()->isUserThread();
+  bool user = GetCurrentTask()->isUserTask();
 
   terminal::Write("received interrupt in ");
-  if (GetCurrentThread() == GetMainKernelThread()) {
-    terminal::Write("main kernel thread");
+  if (GetCurrentTask() == GetMainKernelTask()) {
+    terminal::Write("main kernel task");
   } else if (user) {
-    terminal::WriteF("user thread {}", GetCurrentThread()->getID());
+    terminal::WriteF("user task {}", GetCurrentTask()->getID());
   } else {
-    terminal::WriteF("kernel thread {}", GetCurrentThread()->getID());
+    terminal::WriteF("kernel task {}", GetCurrentTask()->getID());
   }
   terminal::WriteF(": {}\n", Hex(regs->int_no));
 

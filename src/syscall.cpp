@@ -1,6 +1,6 @@
 #include <Terminal.h>
 #include <kassert.h>
-#include <kthread.h>
+#include <ktask.h>
 #include <syscall.h>
 
 #define DEF_SYSCALL0(func, syscall)                             \
@@ -30,7 +30,7 @@
   }
 
 DEF_SYSCALL1(terminal_write, 0, const char *)
-DEF_SYSCALL0(exit_user_thread, 1)
+DEF_SYSCALL0(exit_user_task, 1)
 
 namespace {
 
@@ -41,14 +41,14 @@ uint32_t terminal_write(const char *str) {
   return 0;
 }
 
-uint32_t exit_user_thread() {
-  exit_this_thread();
+uint32_t exit_user_task() {
+  exit_this_task();
   return 0;
 }
 
 void *kSyscalls[] = {
     reinterpret_cast<void *>(terminal_write),
-    reinterpret_cast<void *>(exit_user_thread),
+    reinterpret_cast<void *>(exit_user_task),
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 

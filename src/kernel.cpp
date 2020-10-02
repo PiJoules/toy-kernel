@@ -6,7 +6,7 @@
 #include <kernel.h>
 #include <keyboard.h>
 #include <kmalloc.h>
-#include <kthread.h>
+#include <ktask.h>
 #include <paging.h>
 #include <panic.h>
 #include <syscall.h>
@@ -101,9 +101,9 @@ void kernel_main(const Multiboot *multiboot) {
     terminal::WriteF("#Rows: {}\n", terminal::GetNumRows());
     terminal::WriteF("#Cols: {}\n", terminal::GetNumCols());
 
-    // Run some threads in userspace.
-    Thread t2 = Thread::CreateUserProcess(UserspaceFunc, (void *)0xfeed);
-    Thread t3 = Thread::CreateUserProcess(UserspaceFunc2, (void *)0xfeed2);
+    // Run some tasks in userspace.
+    Task t2 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
+    Task t3 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
     t2.Join();
     t3.Join();
 
@@ -140,11 +140,10 @@ void kernel_main(const Multiboot *multiboot) {
     assert(size && usercode && "Did not load the user program");
 
     {
-      // Actually create and run the user threads.
-      Thread ut1 =
-          Thread::CreateUserProcess((ThreadFunc)usercode, size, (void *)0xfeed);
-      Thread ut2 = Thread::CreateUserProcess((ThreadFunc)usercode, size,
-                                             (void *)0xfeed2);
+      // Actually create and run the user tasks.
+      Task ut1 = Task::CreateUserTask((TaskFunc)usercode, size, (void *)0xfeed);
+      Task ut2 =
+          Task::CreateUserTask((TaskFunc)usercode, size, (void *)0xfeed2);
       ut1.Join();
       ut2.Join();
     }
