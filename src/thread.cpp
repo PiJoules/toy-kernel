@@ -72,7 +72,8 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
   // end of `switch_task` will instead jump to this function.
   if (user) {
     auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
-    *(--stack_bottom) = UINT32_C(kUserDataSegment);  // User data segment | ring 3
+    *(--stack_bottom) =
+        UINT32_C(kUserDataSegment);  // User data segment | ring 3
     *(--stack_bottom) = current_stack_bottom;
     getRegs().ds = kUserDataSegment;
   } else {
@@ -82,7 +83,8 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
   *(--stack_bottom) = UINT32_C(0x202);  // Interrupts enabled
 
   if (user) {
-    *(--stack_bottom) = UINT32_C(kUserCodeSegment);  // User code segment | ring 3
+    *(--stack_bottom) =
+        UINT32_C(kUserCodeSegment);  // User code segment | ring 3
     getRegs().cs = kUserCodeSegment;
   } else {
     *(--stack_bottom) = UINT32_C(kKernelCodeSegment);  // Kernel code segment

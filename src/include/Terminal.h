@@ -19,6 +19,8 @@ namespace terminal {
  */
 void UseTextTerminal(bool serial);
 
+void UseTextTerminalVirtual();
+
 /**
  * If selected, printing from the kernel will show on a graphical display. The
  * dimensions and other attributes of this display are determined from the

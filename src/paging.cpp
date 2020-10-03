@@ -101,7 +101,8 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
                         flags);
 
   // Also need to map GFX memory here.
-  PhysicalBitmap.setPageFrameFree(PageIndex4M(framebuffer_addr));
+  if (framebuffer_addr)
+    PhysicalBitmap.setPageFrameFree(PageIndex4M(framebuffer_addr));
 
   SwitchPageDirectory(KernelPageDir);
 
@@ -123,7 +124,10 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
   // the framebuffer to some allocated virtual memory and write to that instead.
   // FIXME: May also need to remap the text buffer (0xb8000) if not using the
   // first 4MB.
-  if (terminal::UsingGraphics()) terminal::UseGraphicsTerminalVirtual();
+  if (terminal::UsingGraphics())
+    terminal::UseGraphicsTerminalVirtual();
+  else
+    terminal::UseTextTerminalVirtual();
 
   terminal::Write("Paging initialized!\n");
 }
@@ -218,3 +222,9 @@ void PageDirectory::ReclaimPageDirRegion() const {
 }
 
 bool PageDirectory::isKernelPageDir() const { return this == &KernelPageDir; }
+
+bool PageDirectory::isVirtualMapped(void *v_addr) const {
+  auto index = PageIndex4M(v_addr);
+  const uint32_t &pde = pd_impl_[index];
+  return pde & PG_PRESENT;
+}

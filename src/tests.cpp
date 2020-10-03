@@ -502,8 +502,9 @@ TEST(PageFault) {
     ASSERT_EQ(x.val, 9);
   }
 
-  {
-    // We should page fault at 0.
+  if (!GetKernelPageDirectory().isVirtualMapped(nullptr)) {
+    // We should page fault at 0, unless we're using text mode. In this case, we
+    // identity map the first page.
     x.addr = 0;
     x.val = 0;
     RegNum = 0;

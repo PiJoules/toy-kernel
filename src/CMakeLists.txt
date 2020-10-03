@@ -6,10 +6,9 @@ add_library(cpp_objs STATIC
   kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp terminal.cpp Timer.cpp
   paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp thread.cpp
   syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
-  serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp)
+  serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
 target_compile_options(cpp_objs
-  PRIVATE -I ${CMAKE_SOURCE_DIR}/include/
   PRIVATE -target i386
   PRIVATE -ffreestanding
   PRIVATE -Wall
@@ -23,4 +22,8 @@ target_compile_options(cpp_objs
   PRIVATE -ftrivial-auto-var-init=pattern
   PRIVATE -std=c++17
   PRIVATE -UNDEBUG  # We keep all assert()s
+
+  # This is needed for stack tracing.
+  PRIVATE -fno-omit-frame-pointer
+
   PRIVATE -nostdlib)

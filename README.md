@@ -19,10 +19,17 @@ which was referenced many times when building this. Thanks to the devs on them.
 $ mkdir build
 $ cd build
 $ cmake .. -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
-$ ninja
+
+# Just makes the kernel
+$ ninja  # or `ninja kernel`
 $ qemu-system-i386 -display curses -kernel kernel
 
+# Make the ramdisk which will contain some user code
+$ ninja initrd.vfs
+$ qemu-system-i386 -display curses -kernel kernel -initrd initrd.vfs
+
 # Making a bootable cdrom image (preferred)
+# This also uses graphics mode
 $ ninja myos.iso
 $ qemu-system-i386 -cdrom myos.iso
 

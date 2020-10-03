@@ -1,6 +1,7 @@
 #include <Terminal.h>
 #include <kassert.h>
 #include <kernel.h>
+#include <stacktrace.h>
 
 // /tmp/test.cc:4: int main(): Assertion `0' failed.
 // Aborted
@@ -11,6 +12,8 @@ void __assert(bool condition, const char *msg, const char *filename, int line,
   asm volatile("cli");  // Disable interrupts.
   terminal::WriteF("\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename,
                    line, pretty_func, msg);
+
+  stacktrace::PrintStackTrace();
 
   // Halt by going into an infinite loop.
   LOOP_INDEFINITELY();

@@ -4,6 +4,7 @@ enable_language(CXX ASM)
 
 set(KERNEL kernel)
 set(IMAGE myos.iso)
+set(INITRD initrd.vfs)
 set(LINK_FLAGS
   -m elf_i386
   -T ${CMAKE_SOURCE_DIR}/src/link.ld)
@@ -23,13 +24,13 @@ add_custom_target(${FONT} ALL
   # TODO: Add an option to specify the psf that should be used.
   COMMAND cp ${CMAKE_SOURCE_DIR}/font.psf ${CMAKE_CURRENT_BINARY_DIR}/font.psf
   COMMAND ${CMAKE_OBJCOPY} -O elf32-i386 -B i386 -I binary font.psf ${FONT}
-  COMMENT Create font object file
+  COMMENT "Create font object file"
   VERBATIM)
 
 add_custom_target(${KERNEL} ALL
   COMMAND ${CMAKE_LINKER} ${LINK_FLAGS} -o ${KERNEL} --start-group $<TARGET_FILE:asm_objs> $<TARGET_FILE:cpp_objs> ${FONT} --end-group
   COMMAND grub-file --is-x86-multiboot ${KERNEL}
-  COMMENT Link ${KERNEL}
+  COMMENT "Link ${KERNEL}"
   DEPENDS asm_objs cpp_objs ${FONT}
   VERBATIM)
 
@@ -40,19 +41,27 @@ if (NOT ${Python3_Interpreter_FOUND})
   message(FATAL_ERROR "Could not find python3 interpreter")
 endif()
 
-add_custom_target(${IMAGE}
-  COMMAND mkdir -p isodir/boot/grub
+add_custom_target(${INITRD}
   COMMAND mkdir -p initrd/
-  COMMAND cp ${KERNEL} isodir/boot/${KERNEL}
-  COMMAND cp ${CMAKE_SOURCE_DIR}/grub.cfg isodir/boot/grub/grub.cfg
 
   # Copy user programs + data
   COMMAND cp ${CMAKE_SOURCE_DIR}/test.data initrd/
   COMMAND cp usersdk/${USER_PROGRAM} initrd/${USER_PROGRAM}
+
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
-  COMMAND cp initrd.vfs isodir/boot/initrd.vfs
+  COMMENT "Create the initial ramdisk"
+  DEPENDS ${USER_PROGRAM}
+  VERBATIM)
+
+add_custom_target(${IMAGE}
+  COMMAND mkdir -p isodir/boot/grub
+  COMMAND cp ${KERNEL} isodir/boot/${KERNEL}
+  COMMAND cp ${CMAKE_SOURCE_DIR}/grub.cfg isodir/boot/grub/grub.cfg
+
+  # Copy the ramdisk
+  COMMAND cp ${INITRD} isodir/boot/${INITRD}
 
   COMMAND grub-mkrescue -o ${IMAGE} isodir
-  DEPENDS grub.cfg ${KERNEL} ${USER_PROGRAM}
-  COMMENT Create cdrom image
+  DEPENDS grub.cfg ${INITRD} ${KERNEL}
+  COMMENT "Create cdrom image"
   VERBATIM)

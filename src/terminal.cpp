@@ -82,7 +82,7 @@ constexpr uint16_t VgaEntry(char c, uint8_t color) {
 }
 
 uint8_t Color = VgaEntryColor(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-uint16_t *const Buffer = reinterpret_cast<uint16_t *>(0xB8000);
+uint16_t *Buffer = reinterpret_cast<uint16_t *>(0xB8000);
 
 uint16_t GetCursorLoc(uint16_t row, uint16_t col) {
   return row * GetNumCols() + col;
@@ -393,6 +393,13 @@ void UseGraphicsTerminalVirtual() {
                                    (char *)graphics::GFXBuffer,
                                    /*flags=*/0);
   graphics::GFXBuffer = reinterpret_cast<uint32_t *>(GFX_MEMORY_START);
+}
+
+void UseTextTerminalVirtual() {
+  // Just identity map the first page.
+  GetKernelPageDirectory().AddPage(
+      (char *)nullptr, (char *)PageAddr4M(PageIndex4M(text::Buffer)),
+      /*flags=*/0);
 }
 
 uint16_t GetNumRows() { return kTerminal.getNumRows(); }

@@ -6,5 +6,5 @@ add_custom_target(${USER_PROGRAM} ALL
   # TODO: Support position independent code. We fail during the linking step with
   # "undefined reference to `_GLOBAL_OFFSET_TABLE_'".
   #COMMAND ${CMAKE_C_COMPILER} -Wl,-T${CMAKE_SOURCE_DIR}/user_link.ld -o ${USER_PROGRAM} ${CMAKE_SOURCE_DIR}/start_user_program.s ${CMAKE_SOURCE_DIR}/user_program.c -target i386 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs -g -fPIE
-  COMMENT Compiling ${USER_PROGRAM}
+  COMMENT "Compiling ${USER_PROGRAM}"
   VERBATIM)

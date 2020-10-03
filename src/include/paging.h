@@ -166,6 +166,7 @@ class PageDirectory {
   bool isKernelPageDir() const;
   void ReclaimPageDirRegion() const;
   static bool isPhysicalFree(uint32_t page_index);
+  bool isVirtualMapped(void *v_addr) const;
 
  private:
   alignas(kPageDirAlignment) uint32_t pd_impl_[kNumPageDirEntries];
