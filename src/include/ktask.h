@@ -15,7 +15,7 @@ enum TaskState {
   COMPLETED,  // The task finished running.
 };
 
-struct Task;
+class Task;
 
 const Task *GetMainKernelTask();
 const Task *GetCurrentTask();
@@ -25,9 +25,11 @@ using TaskFunc = void (*)(void *);
 
 constexpr uint32_t kKernelDataSegment = 0x10;
 constexpr uint32_t kUserDataSegment = 0x23;
+constexpr uint32_t kKernelCodeSegment = 0x08;
+constexpr uint32_t kUserCodeSegment = 0x1b;
 
-// TODO: This represents a kernel task, so we should rename this KernelTask.
-struct Task {
+class Task {
+ public:
   Task(TaskFunc func, void *arg, bool user = false);
 
   /**
