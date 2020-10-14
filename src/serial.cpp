@@ -1,5 +1,6 @@
 #include <io.h>
 #include <kstdint.h>
+#include <kstring.h>
 
 namespace serial {
 
@@ -31,6 +32,10 @@ char Read() {
 void Write(char c) {
   while (!IsTransmitEmpty()) {}
   Write8(kCOM1, c);
+}
+
+void Write(const char *str) {
+  for (size_t size = strlen(str), i = 0; i < size; ++i) Write(str[i]);
 }
 
 }  // namespace serial

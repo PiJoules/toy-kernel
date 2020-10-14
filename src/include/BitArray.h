@@ -8,6 +8,8 @@ namespace toy {
 template <size_t NumBits>
 class BitArray {
  public:
+  size_t size() const { return NumBits; }
+
   void Clear() { memset(bitarray_, 0, sizeof(bitarray_)); }
 
   void setOne(size_t bit) {
@@ -46,6 +48,8 @@ class BitArray {
     }
     return false;
   }
+
+  const uint8_t *get() const { return bitarray_; }
 
  protected:
   uint8_t bitarray_[NumBits / 8];

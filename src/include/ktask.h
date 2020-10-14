@@ -48,17 +48,31 @@ class Task {
   // NOTE: These values are assigned in task.s. Be sure to update that file if
   // these are ever changed.
   struct regs_t {
-    uint32_t esp, ebp, ebx, esi, edi, eflags, eip;
+    uint32_t esp, ebp, eax, ebx, ecx, edx, esi, edi, eflags, eip;
     uint16_t ds, es, fs, gs, cs;  // These must be 16-bit aligned.
 
     // 2-byte Padding
   };
-  static_assert(sizeof(regs_t) == 40,
+  static_assert(sizeof(regs_t) == 52,
                 "Size of regs changed! If this is intended, be sure to also "
                 "update task.s");
-  static_assert(offsetof(regs_t, ds) == 28);
-  static_assert(offsetof(regs_t, eip) == 24);
-  static_assert(offsetof(regs_t, cs) == 36);
+
+  // These are here to provide easy-to-lookup offsets for task.s.
+  static_assert(offsetof(regs_t, esp) == 0);
+  static_assert(offsetof(regs_t, ebp) == 4);
+  static_assert(offsetof(regs_t, eax) == 8);
+  static_assert(offsetof(regs_t, ebx) == 12);
+  static_assert(offsetof(regs_t, ecx) == 16);
+  static_assert(offsetof(regs_t, edx) == 20);
+  static_assert(offsetof(regs_t, esi) == 24);
+  static_assert(offsetof(regs_t, edi) == 28);
+  static_assert(offsetof(regs_t, eflags) == 32);
+  static_assert(offsetof(regs_t, eip) == 36);
+  static_assert(offsetof(regs_t, ds) == 40);
+  static_assert(offsetof(regs_t, es) == 42);
+  static_assert(offsetof(regs_t, fs) == 44);
+  static_assert(offsetof(regs_t, gs) == 46);
+  static_assert(offsetof(regs_t, cs) == 48);
 
   const regs_t &getRegs() const { return regs_; }
   regs_t &getRegs() { return regs_; }

@@ -1,10 +1,10 @@
-add_library(asm_objs STATIC boot.s gdt.s interrupt.s thread.s)
+add_library(asm_objs STATIC boot.s gdt.s interrupt.s task.s)
 target_compile_options(asm_objs
   PRIVATE -target i686)
 
 add_library(cpp_objs STATIC
   kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp terminal.cpp Timer.cpp
-  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp thread.cpp
+  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp task.cpp
   syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
   serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp)
 target_include_directories(cpp_objs PRIVATE include/)

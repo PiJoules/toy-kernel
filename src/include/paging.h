@@ -55,6 +55,8 @@ constexpr size_t kNumPageDirEntries = 1024;
 constexpr size_t kPageDirAlignment =
     4096;  // Page directories must be 4 kB aligned.
 constexpr size_t kPageDirSize = 4096;
+constexpr size_t kNumPageDirs =
+    (PAGE_DIRECTORY_REGION_END - PAGE_DIRECTORY_REGION_START) / kPageDirSize;
 
 // FIXME: Eventually remove the `framebuffer_addr` argument.
 void InitializePaging(uint32_t high_mem, bool pages_4K,

@@ -91,7 +91,17 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
     getRegs().cs = kKernelCodeSegment;
   }
 
-  *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
+  // FIXME: This is a hack for detecting if the function we are calling is in
+  // kernel or user space.
+  {
+    if (user &&
+        (KERN_HEAP_BEGIN <= (uint32_t)func && (uint32_t)func < KERN_HEAP_END)) {
+      *(--stack_bottom) = USER_START;
+    } else {
+      // This is kernel mode or kernel code.
+      *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
+    }
+  }
 
   getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
 
@@ -202,6 +212,7 @@ void schedule(const registers_t *regs) {
       assert(esp[6] == 0x23);
     }
 
+    CurrentTask->getRegs().eax = regs->eax;
     CurrentTask->getRegs().ebp = regs->ebp;
     CurrentTask->getRegs().eip = regs->eip;
     CurrentTask->getRegs().cs = static_cast<uint16_t>(regs->cs);
@@ -210,6 +221,8 @@ void schedule(const registers_t *regs) {
     CurrentTask->getRegs().esp = adjusted_esp;
 
     CurrentTask->getRegs().ebx = regs->ebx;
+    CurrentTask->getRegs().ecx = regs->ecx;
+    CurrentTask->getRegs().edx = regs->edx;
     CurrentTask->getRegs().esi = regs->esi;
     CurrentTask->getRegs().edi = regs->edi;
     CurrentTask->getRegs().ds = static_cast<uint16_t>(regs->ds);
@@ -264,6 +277,9 @@ void schedule(const registers_t *regs) {
         GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1), PG_USER);
     memcpy(reinterpret_cast<void *>(USER_START),
            reinterpret_cast<void *>(task->userfunc_), task->usercode_size_);
+
+    uint32_t *stack = (uint32_t *)task->getRegs().esp;
+    assert(*stack == USER_START);
   }
 
   Task::regs_t *task_regs = &task->getRegs();

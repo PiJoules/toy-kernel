@@ -3,6 +3,7 @@
 #include <knew.h>
 #include <ktask.h>
 #include <paging.h>
+#include <stacktrace.h>
 
 namespace {
 
@@ -10,6 +11,7 @@ PageDirectory KernelPageDir;
 PhysicalBitmap4M PhysicalBitmap;
 
 void HandlePageFault(registers_t *regs) {
+  asm volatile("cli");
   uint32_t faulting_addr;
   asm volatile("mov %%cr2, %0" : "=r"(faulting_addr));
 
@@ -38,11 +40,11 @@ void HandlePageFault(registers_t *regs) {
 
   DumpRegisters(regs);
 
+  stacktrace::PrintStackTrace();
+
   PANIC("Page fault!");
 }
 
-constexpr size_t kNumPageDirs =
-    (PAGE_DIRECTORY_REGION_END - PAGE_DIRECTORY_REGION_START) / kPageDirSize;
 class PageDirRegionBitmap : public toy::BitArray<kNumPageDirs> {
  public:
   void *getAndUseNextFreeRegion() {
@@ -155,6 +157,9 @@ IdentityMapRAII::~IdentityMapRAII() {
 
 // Map unmapped virtual memory to available physical memory.
 void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
+  bool interrupts = InteruptsAreEnabled();
+  if (interrupts) DisableInterrupts();
+
   // With 4MB pages, bits 31 through 12 are reserved, so the the physical
   // address must be 4MB aligned.
   uint32_t paddr_int = reinterpret_cast<uint32_t>(p_addr);
@@ -181,6 +186,24 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
 
   // Invalidate page in TLB.
   asm volatile("invlpg %0" ::"m"(v_addr));
+
+  if (isKernelPageDir()) {
+    // We have updated the kernel page directory. Make sure all changes to this
+    // page directory also propagate to all other page directories.
+    for (size_t bit = 0; bit < PageDirRegion.size(); ++bit) {
+      if (!PageDirRegion.isSet(bit)) continue;
+
+      PageDirectory &pd =
+          reinterpret_cast<PageDirectory *>(PAGE_DIRECTORY_REGION_START)[bit];
+      assert(!pd.get()[index] &&
+             "Another task's page directory entry is already used. This page "
+             "should be reserved for a kernel mapping.");
+      pd.get()[index] = pde;
+      PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
+    }
+  }
+
+  if (interrupts) EnableInterrupts();
 }
 
 bool PageDirectory::isPhysicalFree(uint32_t page_index) {
@@ -194,8 +217,7 @@ void SwitchPageDirectory(PageDirectory &pd) {
 PageDirectory *PageDirectory::Clone() const {
   // Note that page directories created this way never need to be explicitly
   // deleted.
-  auto *pd = new (PageDirRegion.getAndUseNextFreeRegion()) PageDirectory;
-  memcpy(pd->get(), get(), sizeof(pd_impl_));
+  auto *pd = new (PageDirRegion.getAndUseNextFreeRegion()) PageDirectory(*this);
 
   // Increment refcount for all physical pages referenced at the time of this
   // clone.

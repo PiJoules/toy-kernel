@@ -49,37 +49,51 @@
   // Set the registers pased off values stored in the new task.
   movl 0(%eax),%esp
   movl 4(%eax),%ebp
-  movl 8(%eax),%ebx
-  movl 12(%eax),%esi
-  movl 16(%eax),%edi
+  // eax is 8(%eax); this should be set before the iret
+  movl 12(%eax),%ebx
+  // ecx is briefly used as a temporary register and set near the end of each function.
+  movl 20(%eax),%edx
+  movl 24(%eax),%esi
+  movl 28(%eax),%edi
+
+  // eflags and eip are added to the stack before each iret.
 
   // Restore segment registers.
-  movw 28(%eax), %ds
-  movw 30(%eax), %es
-  movw 32(%eax), %fs
-  movw 34(%eax), %gs
+  movw 40(%eax), %ds
+  movw 42(%eax), %es
+  movw 44(%eax), %fs
+  movw 46(%eax), %gs
+
+  // cs is set in each function. We cannot set it here though or we'll crash.
 .endm
 
   .global switch_kernel_task_run
 switch_kernel_task_run:
   SWAP_TASKS
-  pushl 20(%eax) // eflags
+  pushl 32(%eax) // eflags
 
-  mov 36(%eax), %cx  // cs
+  mov 48(%eax), %cx  // cs
   movzx %cx, %ecx
   push %ecx
 
-  pushl 24(%eax)  // eip
+  pushl 36(%eax)  // eip
+
+  mov 16(%eax), %ecx
+  mov 8(%eax), %eax
   iret
 
   .global switch_first_kernel_task_run
 switch_first_kernel_task_run:
   SWAP_TASKS
+  mov 16(%eax), %ecx
+  mov 8(%eax), %eax
   iret
 
   .global switch_first_user_task_run
 switch_first_user_task_run:
   SWAP_TASKS
+  mov 16(%eax), %ecx
+  mov 8(%eax), %eax
   iret
 
   .globl switch_user_task_run
@@ -88,11 +102,14 @@ switch_user_task_run:
   push %ds  // DS/SS
 
   pushl 0(%eax)  // esp
-  pushl 20(%eax) // eflags
+  pushl 32(%eax) // eflags
 
-  mov 36(%eax), %cx
+  mov 48(%eax), %cx
   movzx %cx, %ecx
   push %ecx   // cs
 
-  pushl 24(%eax)  // eip
+  pushl 36(%eax)  // eip
+
+  mov 16(%eax), %ecx
+  mov 8(%eax), %eax
   iret

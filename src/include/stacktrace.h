@@ -4,6 +4,7 @@
 namespace stacktrace {
 
 void PrintStackTrace();
+void DebugPrintStackTrace();
 
 }  // namespace stacktrace
 

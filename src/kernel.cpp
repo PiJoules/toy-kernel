@@ -38,11 +38,25 @@ void Nested() {
 
 void UserspaceFunc2([[maybe_unused]] void *args) { Nested(); }
 
+Task RunUserProgram(const vfs::Directory &vfs, const toy::String &filename,
+                    void *&usercode, void *arg = nullptr) {
+  const vfs::Node *program = vfs.getFile(filename);
+  assert(program && "Could not find user_program.bin");
+
+  const vfs::File &file = program->AsFile();
+  size_t size = file.contents.size();
+  terminal::WriteF("user_program.bin is {} bytes\n", size);
+
+  usercode = kmalloc(size);
+  memcpy(usercode, file.contents.data(), size);
+
+  // Actually create and run the user tasks.
+  return Task::CreateUserTask((TaskFunc)usercode, size, arg);
+}
+
 }  // namespace
 
-extern "C" {
-
-void kernel_main(const Multiboot *multiboot) {
+extern "C" void kernel_main(const Multiboot *multiboot) {
   int stack_start;
 
   // At this point, we do not know how to print stuff yet. That is, are we
@@ -111,57 +125,42 @@ void kernel_main(const Multiboot *multiboot) {
     WriteF("multiboot address: {}\n", multiboot);
     assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
 
-    void *usercode = nullptr;
-    size_t size = 0;
-    {
-      // Read the user program and copy it. We need to use an identity map
-      // because the multiboot addresses could be within the first 4MB page of
-      // memory.
-      // FIXME: Instead, it might just be cleaner to memcpy() all relevant data
-      // somewhere into a variable on the stack so we don't need to map address
-      // space 0.
-      if (terminal::UsingGraphics())
-        GetKernelPageDirectory().AddPage(nullptr, nullptr, 0);
+    // Read the user program and copy it. We need to use an identity map
+    // because the multiboot addresses could be within the first 4MB page of
+    // memory.
+    // FIXME: Instead, it might just be cleaner to memcpy() all relevant data
+    // somewhere into a variable on the stack so we don't need to map address
+    // space 0.
+    if (terminal::UsingGraphics())
+      GetKernelPageDirectory().AddPage(nullptr, nullptr, 0);
 
-      if (multiboot->mods_count) {
-        auto *moduleinfo = multiboot->getModuleBegin();
-        uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
-        uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
-        WriteF("vfs size: {}\n", moduleinfo->getModuleSize());
-        auto vfs = vfs::ParseVFS(modstart, modend);
-        vfs->Dump();
-
-        const vfs::Node *program = vfs->getFile("user_program.bin");
-        assert(program && "Could not find user_program.bin");
-
-        const vfs::File &file = program->AsFile();
-        size = file.contents.size();
-        terminal::WriteF("user_program.bin is {} bytes\n", size);
-
-        usercode = kmalloc(size);
-        memcpy(usercode, file.contents.data(), size);
-      }
-
+    toy::Unique<vfs::Directory> vfs;
+    if (multiboot->mods_count) {
+      auto *moduleinfo = multiboot->getModuleBegin();
+      uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
+      uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
+      WriteF("vfs size: {}\n", moduleinfo->getModuleSize());
+      vfs = vfs::ParseVFS(modstart, modend);
       if (terminal::UsingGraphics())
         GetKernelPageDirectory().RemovePage(nullptr);
-    }
 
-    if (size && usercode) {
-      // Actually create and run the user tasks.
-      Task ut1 = Task::CreateUserTask((TaskFunc)usercode, size, (void *)0xfeed);
-      Task ut2 =
-          Task::CreateUserTask((TaskFunc)usercode, size, (void *)0xfeed2);
-      ut1.Join();
-      ut2.Join();
+      void *usercode, *usercode2;
+      Task t = RunUserProgram(*vfs, "user_program.bin", usercode);
+      Task t2 = RunUserProgram(*vfs, "user_program.bin", usercode2);
+      t.Join();
+      t2.Join();
+
+      kfree(usercode);
+      kfree(usercode2);
     } else {
       terminal::Write(
           "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "
           "running on QEMU, then either pass the image file with `-cdrom "
           "myos.iso`, or pass the ramdisk along with the kernel via `-kernel "
           "kernel -initrd initrd.vfs`.\n\n");
+      if (terminal::UsingGraphics())
+        GetKernelPageDirectory().RemovePage(nullptr);
     }
-
-    kfree(usercode);
   }
 
   DestroyScheduler();
@@ -172,5 +171,4 @@ void kernel_main(const Multiboot *multiboot) {
 
   Write("Reached end of kernel.");
   while (1) {}
-}
 }

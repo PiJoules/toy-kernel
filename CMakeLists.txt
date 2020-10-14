@@ -9,7 +9,6 @@ set(LINK_FLAGS
   -m elf_i386
   -T ${CMAKE_SOURCE_DIR}/src/link.ld)
 set(FONT font.o)
-set(USER_PROGRAM user_program.bin)
 
 add_subdirectory(src)
 
@@ -34,7 +33,18 @@ add_custom_target(${KERNEL} ALL
   DEPENDS asm_objs cpp_objs ${FONT}
   VERBATIM)
 
+set(USER_PROGRAMS "" CACHE INTERNAL "")
+
+function(add_to_initrd binary)
+  get_filename_component(path ${binary} REALPATH)
+  set(USER_PROGRAMS "${USER_PROGRAMS} ${path}" CACHE INTERNAL "")
+  message(STATUS "Add ${binary} to USER_PROGRAMS (${USER_PROGRAMS})")
+endfunction()
+
 add_subdirectory(usersdk)
+
+set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
+separate_arguments(USER_PROGRAMS_LIST)
 
 find_package(Python3 COMPONENTS Interpreter)
 if (NOT ${Python3_Interpreter_FOUND})
@@ -46,11 +56,12 @@ add_custom_target(${INITRD}
 
   # Copy user programs + data
   COMMAND cp ${CMAKE_SOURCE_DIR}/test.data initrd/
-  COMMAND cp usersdk/${USER_PROGRAM} initrd/${USER_PROGRAM}
+  COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
+  COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f initrd/ ; done"
 
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
-  COMMENT "Create the initial ramdisk"
-  DEPENDS ${USER_PROGRAM}
+  COMMENT "Create the initial ramdisk with '${USER_PROGRAMS}'"
+  DEPENDS ${USER_PROGRAMS_LIST}
   VERBATIM)
 
 add_custom_target(${IMAGE}

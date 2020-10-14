@@ -524,4 +524,9 @@ void PrintFormatter(PutFunc put, decltype(nullptr)) {
   Write(put, "<nullptr>");
 }
 
+template <>
+void PrintFormatter(PutFunc put, bool b) {
+  Write(put, b ? "true" : "false");
+}
+
 }  // namespace terminal

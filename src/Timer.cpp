@@ -8,11 +8,24 @@
 
 uint32_t tick = 0;
 
+// Ensure a task runs for at least this many ticks before switching.
+constexpr uint32_t kQuanta = 10;
+
 namespace {
 
 void TimerCallback(registers_t *regs) {
   ++tick;
-  schedule(regs);
+
+  // NOTE: If it turns out the schedule() function takes longer than it does for
+  // the PIT to tick once more, then it's possible for us to be stuck at a given
+  // address because we will hit this callback again after handling the previous
+  // timer callback. To prevent taking a *potentially* slow schedule(), we can
+  // insteak take the fast path of not scheduling and allow the current task to
+  // keep running in hopes that it can at least progress. Note that it is also
+  // possible, but less likely, that if this callback in general is slow, then
+  // we could also be stuck at the same instruction no matter which path we
+  // take. (Let's just hope it doesn't come down to this ever.)
+  if (tick % kQuanta == 0) schedule(regs);
 }
 
 }  // namespace

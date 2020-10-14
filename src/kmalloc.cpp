@@ -53,6 +53,9 @@ void *kmalloc(size_t size, uint32_t alignment) {
   assert(alignment && IsPowerOf2(alignment) && "Invalid alignment");
   if (size == 0) return nullptr;
 
+  bool interrupts = InteruptsAreEnabled();
+  if (interrupts) DisableInterrupts();
+
   size_t realsize = sizeof(MallocHeader) + size;
   MallocHeader *chunk = reinterpret_cast<MallocHeader *>(KERN_HEAP_BEGIN);
 
@@ -142,6 +145,8 @@ void *kmalloc(size_t size, uint32_t alignment) {
   void *ptr = reinterpret_cast<uint8_t *>(chunk) + sizeof(MallocHeader);
   assert(reinterpret_cast<uintptr_t>(ptr) % alignment == 0 &&
          "Returning an unaligned pointer!");
+
+  if (interrupts) EnableInterrupts();
   return ptr;
 }
 
