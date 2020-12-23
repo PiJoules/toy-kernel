@@ -953,6 +953,9 @@ TEST(BitVectorTest) {
   ASSERT_EQ(v.getAs<uint32_t>(), UINT32_MAX);
 
   v.push_back(0);
+  ASSERT_EQ(v.getBack(), 0);
+  ASSERT_EQ(v.get(32), 0);
+  ASSERT_EQ(v.get(31), 1);
   ASSERT_EQ(v.size(), 33);
   ASSERT_EQ(v.getAs<uint64_t>(), UINT32_MAX);
   v.set(32, 0);

@@ -156,9 +156,9 @@ IdentityMapRAII::~IdentityMapRAII() {
 }
 
 // Map unmapped virtual memory to available physical memory.
-void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
-  bool interrupts = InteruptsAreEnabled();
-  if (interrupts) DisableInterrupts();
+void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags,
+                            bool allow_physical_reuse) {
+  DisableInterruptsRAII disable_interrupts_raii;
 
   // With 4MB pages, bits 31 through 12 are reserved, so the the physical
   // address must be 4MB aligned.
@@ -172,7 +172,8 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
   assert(vaddr_int % kPageSize4M == 0 &&
          "Attempting to map a virtual address that is not 4MB aligned");
 
-  assert(!PhysicalBitmap.isPageFrameUsed(PageIndex4M(paddr_int)));
+  if (!allow_physical_reuse)
+    assert(!PhysicalBitmap.isPageFrameUsed(PageIndex4M(paddr_int)));
 
   uint32_t index = PageIndex4M(vaddr_int);
   uint32_t &pde = pd_impl_[index];
@@ -202,8 +203,6 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags) {
       PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
     }
   }
-
-  if (interrupts) EnableInterrupts();
 }
 
 bool PageDirectory::isPhysicalFree(uint32_t page_index) {

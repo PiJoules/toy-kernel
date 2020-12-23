@@ -396,6 +396,7 @@ void UseGraphicsTerminalVirtual() {
 }
 
 void UseTextTerminalVirtual() {
+  // FIXME: We should remap this.
   // Just identity map the first page.
   GetKernelPageDirectory().AddPage(
       (char *)nullptr, (char *)PageAddr4M(PageIndex4M(text::Buffer)),

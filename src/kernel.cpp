@@ -54,6 +54,9 @@ Task RunUserProgram(const vfs::Directory &vfs, const toy::String &filename,
   return Task::CreateUserTask((TaskFunc)usercode, size, arg);
 }
 
+void KernelPostInit(size_t num_mods, const vfs::Directory *vfs);
+void KernelEnd();
+
 }  // namespace
 
 extern "C" void kernel_main(const Multiboot *multiboot) {
@@ -97,11 +100,17 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   assert(multiboot->framebuffer_addr <= UINT32_MAX &&
          "Framebuffer cannot fit in 32 bits.");
 
+  // Test a user program loaded as a multiboot module.
+  WriteF("multiboot address: {}\n", multiboot);
+  assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
+
+  uint32_t mem_upper = multiboot->mem_upper;
+  uint32_t framebuffer_addr = static_cast<uint32_t>(multiboot->framebuffer_addr);
+
   {
     // Initialize stuff for the kernel to work.
     InitDescriptorTables();
-    InitializePaging(multiboot->mem_upper, /*pages_4K=*/true,
-                     static_cast<uint32_t>(multiboot->framebuffer_addr));
+    InitializePaging(mem_upper, /*pages_4K=*/true, framebuffer_addr);
     InitializeKernelHeap();
     InitTimer(50);
     InitScheduler();
@@ -109,60 +118,71 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
     InitializeKeyboard();
   }
 
+  // NOTE: After we initialize paging, we may not be able to access all data
+  // pointed to by multiboot located in the first page of memory. All that data
+  // should be copied over now to some local variable if we want to access it
+  // after paging is enabled.
+  // FIXME: We only need this check because the buffer when using textual mode
+  // is identity mapped, but we should map it elsewhere. Ideally, we'd have the
+  // first page unmapped by default.
+  if (terminal::UsingGraphics())
+    GetKernelPageDirectory().AddPage(nullptr, nullptr, 0,
+                                     /*allow_physical_reuse=*/true);
+
+  size_t num_mods = multiboot->mods_count;
+  assert(num_mods < 2 && "Expected at least the kernel to be loaded with an optional initial ramdisk");
+
   {
-    // Playground environment.
-    RunTests();
-    terminal::WriteF("#Rows: {}\n", terminal::GetNumRows());
-    terminal::WriteF("#Cols: {}\n", terminal::GetNumCols());
-
-    // Run some tasks in userspace.
-    Task t2 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
-    Task t3 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
-    t2.Join();
-    t3.Join();
-
-    // Test a user program loaded as a multiboot module.
-    WriteF("multiboot address: {}\n", multiboot);
-    assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
-
-    // Read the user program and copy it. We need to use an identity map
-    // because the multiboot addresses could be within the first 4MB page of
-    // memory.
-    // FIXME: Instead, it might just be cleaner to memcpy() all relevant data
-    // somewhere into a variable on the stack so we don't need to map address
-    // space 0.
-    if (terminal::UsingGraphics())
-      GetKernelPageDirectory().AddPage(nullptr, nullptr, 0);
-
     toy::Unique<vfs::Directory> vfs;
-    if (multiboot->mods_count) {
+    if (num_mods) {
       auto *moduleinfo = multiboot->getModuleBegin();
       uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
       uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
       WriteF("vfs size: {}\n", moduleinfo->getModuleSize());
       vfs = vfs::ParseVFS(modstart, modend);
-      if (terminal::UsingGraphics())
-        GetKernelPageDirectory().RemovePage(nullptr);
-
-      void *usercode, *usercode2;
-      Task t = RunUserProgram(*vfs, "user_program.bin", usercode);
-      Task t2 = RunUserProgram(*vfs, "user_program.bin", usercode2);
-      t.Join();
-      t2.Join();
-
-      kfree(usercode);
-      kfree(usercode2);
-    } else {
-      terminal::Write(
-          "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "
-          "running on QEMU, then either pass the image file with `-cdrom "
-          "myos.iso`, or pass the ramdisk along with the kernel via `-kernel "
-          "kernel -initrd initrd.vfs`.\n\n");
-      if (terminal::UsingGraphics())
-        GetKernelPageDirectory().RemovePage(nullptr);
     }
-  }
 
+    if (terminal::UsingGraphics())
+      GetKernelPageDirectory().RemovePage(nullptr);
+
+    KernelPostInit(num_mods, vfs.get());
+  }
+  KernelEnd();
+}
+
+namespace {
+
+void KernelPostInit(size_t num_mods, const vfs::Directory *vfs) {
+  // Playground environment.
+  RunTests();
+  terminal::WriteF("#Rows: {}\n", terminal::GetNumRows());
+  terminal::WriteF("#Cols: {}\n", terminal::GetNumCols());
+
+  // Run some tasks in userspace.
+  Task t2 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
+  Task t3 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
+  t2.Join();
+  t3.Join();
+
+  if (num_mods) {
+    void *usercode, *usercode2;
+    Task t = RunUserProgram(*vfs, "user_program.bin", usercode);
+    Task t2 = RunUserProgram(*vfs, "user_program.bin", usercode2);
+    t.Join();
+    t2.Join();
+
+    kfree(usercode);
+    kfree(usercode2);
+  } else {
+    terminal::Write(
+        "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "
+        "running on QEMU, then either pass the image file with `-cdrom "
+        "myos.iso`, or pass the ramdisk along with the kernel via `-kernel "
+        "kernel -initrd initrd.vfs`.\n\n");
+  }
+}
+
+void KernelEnd() {
   DestroyScheduler();
 
   // Make sure all allocated memory was freed.
@@ -172,3 +192,5 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   Write("Reached end of kernel.");
   while (1) {}
 }
+
+}  // namespace

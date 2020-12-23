@@ -1,6 +1,11 @@
 #ifndef KERNEL_H_
 #define KERNEL_H_
 
+/**
+ * This header contains miscellanious things that can be used anywhere in the
+ * kernel.
+ */
+
 #include <kstdint.h>
 
 #define __STR(s) STR(s)
@@ -8,7 +13,7 @@
 
 inline void DisableInterrupts() { asm volatile("cli"); }
 inline void EnableInterrupts() { asm volatile("sti"); }
-inline bool InteruptsAreEnabled() {
+inline bool InterruptsAreEnabled() {
   uint32_t eflags;
   asm volatile(
       "\
@@ -17,6 +22,24 @@ inline bool InteruptsAreEnabled() {
       : "=r"(eflags));
   return eflags & 0x200;
 }
+
+/**
+ * RAII for disabling interrupts in a scope, then re-enabling them after exiting
+ * the scope only if they were already enabled at the start.
+ */
+class DisableInterruptsRAII {
+ public:
+  DisableInterruptsRAII() : interrupts_enabled_(InterruptsAreEnabled()) {
+    DisableInterrupts();
+  }
+  ~DisableInterruptsRAII() {
+    if (interrupts_enabled_)
+      EnableInterrupts();
+  }
+
+ private:
+  bool interrupts_enabled_;
+};
 
 inline bool IsPowerOf2(uint32_t x) { return x != 0 && ((x & (x - 1)) == 0); }
 

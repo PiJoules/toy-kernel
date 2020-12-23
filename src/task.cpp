@@ -179,7 +179,7 @@ void schedule(const registers_t *regs) {
 
   // Only one task is on the queue, so we don't need to change (fast path).
   if (!ReadyQueue->next) return;
-  assert(!InteruptsAreEnabled());
+  assert(!InterruptsAreEnabled());
 
   // Iterate through the ready queue to the end.
   TaskNode *last_node = ReadyQueue;

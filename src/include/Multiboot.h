@@ -3,6 +3,7 @@
 
 #include <kassert.h>
 #include <kstdint.h>
+#include <unique.h>
 
 // See https://www.gnu.org/software/grub/manual/multiboot/multiboot.html for
 // information on individual fields.

@@ -156,9 +156,11 @@ class PageDirectory {
 
   // Map unmapped virtual memory to available physical memory.
   //
-  // TODO: Might be useful to have a method that does mapping to previously
-  // mapped physical memory. This could be useful for shared memory.
-  void AddPage(void *v_addr, const void *p_addr, uint8_t flags);
+  // allow_physical_reuse: If false, this function will only allow a mapping if
+  //   both the virtual and physical pages are unmapped. If true, this allows
+  //   an existing mapped physical page to be mapped to a new virtual page.
+  void AddPage(void *v_addr, const void *p_addr, uint8_t flags,
+               bool allow_physical_reuse = false);
 
   void RemovePage(void *vaddr);
 

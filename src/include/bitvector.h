@@ -60,7 +60,15 @@ class BitVector {
            "Cannot fit this value onto this type");
     if (onHeap()) {
       T x;
-      memcpy(&x, reinterpret_cast<void *>(buffer_), sizeof(T));
+      uint8_t *data_ptr = reinterpret_cast<uint8_t *>(&x);
+      memset(data_ptr, 0, sizeof(T));
+      for (size_t bit = 0; bit < bits_; ++bit ) {
+        auto bits_idx = bit / CHAR_BIT;
+        auto shift_amt = bit % CHAR_BIT;
+        uint8_t &byte = data_ptr[bits_idx];
+        uint8_t val = BufferPtr()[bits_idx] & (UINT8_C(1) << shift_amt);
+        byte = static_cast<uint8_t>((byte & ~(UINT8_C(1) << shift_amt)) | val);
+      }
       return x;
     } else {
       return static_cast<T>(buffer_);
@@ -75,7 +83,10 @@ class BitVector {
   // then this instead represents a pointer to a malloc'd address.
   uintptr_t buffer_;
 
-  uint8_t *BufferPtr() const { return reinterpret_cast<uint8_t *>(buffer_); }
+  uint8_t *BufferPtr() const {
+    assert(onHeap());
+    return reinterpret_cast<uint8_t *>(buffer_);
+  }
 
   static constexpr size_t kDefaultSize = sizeof(buffer_) * CHAR_BIT;
 
@@ -105,6 +116,7 @@ class BitVector {
     if (BytesNeeded(bits_) > capacity_) {
       bool was_on_heap = onHeap();
       capacity_ <<= 1;
+      assert(capacity_ >= BytesNeeded(bits_));
 
       if (was_on_heap) {
         assert(onHeap() &&

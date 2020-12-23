@@ -18,7 +18,7 @@ which was referenced many times when building this. Thanks to the devs on them.
 ```sh
 $ mkdir build
 $ cd build
-$ cmake .. -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+$ cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
 
 # Just makes the kernel
 $ ninja  # or `ninja kernel`
