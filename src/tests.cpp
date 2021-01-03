@@ -9,6 +9,7 @@
 #include <knew.h>
 #include <kstring.h>
 #include <ktask.h>
+#include <print.h>
 #include <string.h>
 #include <tests.h>
 #include <unique.h>
@@ -93,17 +94,17 @@ void PrintingSetup() {
 }
 
 TEST(StringFormatting) {
-  terminal::WriteF(PutBuffer, "hello {}", "world");
+  print::Print(PutBuffer, "hello {}", "world");
   ASSERT_STREQ(Buffer, "hello world");
 }
 
 TEST(IntFormatting) {
-  terminal::WriteF(PutBuffer, "12{}4", 3);
+  print::Print(PutBuffer, "12{}4", 3);
   ASSERT_STREQ(Buffer, "1234");
 }
 
 TEST(UnsignedFormatting) {
-  terminal::WriteF(PutBuffer, "12{}4", 3u);
+  print::Print(PutBuffer, "12{}4", 3u);
   ASSERT_STREQ(Buffer, "1234");
 }
 

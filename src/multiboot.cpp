@@ -6,9 +6,8 @@ toy::Unique<Multiboot> Multiboot::DeepCopy() const {
   memcpy(mb.get(), this, sizeof(Multiboot));
 
   // Create new modules also.
-  for (ModuleInfo *info = getModuleBegin(), end = getModuleEnd(); info < end; ++info) {
-    
-  }
+  for (ModuleInfo *info = getModuleBegin(), end = getModuleEnd(); info < end;
+       ++info) {}
 
   return mb;
 }

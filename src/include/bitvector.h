@@ -62,7 +62,7 @@ class BitVector {
       T x;
       uint8_t *data_ptr = reinterpret_cast<uint8_t *>(&x);
       memset(data_ptr, 0, sizeof(T));
-      for (size_t bit = 0; bit < bits_; ++bit ) {
+      for (size_t bit = 0; bit < bits_; ++bit) {
         auto bits_idx = bit / CHAR_BIT;
         auto shift_amt = bit % CHAR_BIT;
         uint8_t &byte = data_ptr[bits_idx];

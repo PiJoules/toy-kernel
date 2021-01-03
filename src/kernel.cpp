@@ -2,6 +2,7 @@
 #include <Multiboot.h>
 #include <Terminal.h>
 #include <Timer.h>
+#include <io.h>
 #include <kassert.h>
 #include <kernel.h>
 #include <keyboard.h>
@@ -9,13 +10,14 @@
 #include <ktask.h>
 #include <paging.h>
 #include <panic.h>
+#include <serial.h>
 #include <syscall.h>
 #include <tests.h>
 #include <vfs.h>
 
-using terminal::Hex;
-using terminal::Write;
-using terminal::WriteF;
+using print::Hex;
+// using terminal::Write;
+// using terminal::WriteF;
 
 extern "C" uint8_t _start, _end;
 
@@ -25,6 +27,14 @@ namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
+
+/**
+ * Printing to serial.
+ */
+template <typename... Rest>
+void DebugPrint(const char *str, Rest... rest) {
+  print::Print(serial::Put, str, rest...);
+}
 
 void UserspaceFunc([[maybe_unused]] void *args) {
   syscall_terminal_write("Printing this through a syscall.\n");
@@ -45,7 +55,7 @@ Task RunUserProgram(const vfs::Directory &vfs, const toy::String &filename,
 
   const vfs::File &file = program->AsFile();
   size_t size = file.contents.size();
-  terminal::WriteF("user_program.bin is {} bytes\n", size);
+  DebugPrint("user_program.bin is {} bytes\n", size);
 
   usercode = kmalloc(size);
   memcpy(usercode, file.contents.data(), size);
@@ -66,46 +76,47 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   // in VGA graphics mode or EGA text mode? We need to first identify where our
   // frame buffer is.
   if (multiboot->framebuffer_type == 1)
-    terminal::UseGraphicsTerminalPhysical(multiboot, /*serial=*/true);
+    terminal::UseGraphicsTerminalPhysical(multiboot);
   else
-    terminal::UseTextTerminal(/*serial=*/true);
+    terminal::UseTextTerminal();
 
-  Write("Hello, kernel World!\n");
+  DebugPrint("Hello, kernel World!\n");
 
-  WriteF("multiboot flags: {}\n", Hex(multiboot->flags));
-  WriteF("Lower memory: {}\n", Hex(multiboot->mem_lower));
-  WriteF("Upper memory (kB): {}\n", Hex(multiboot->mem_upper));
-  WriteF("Kernel start:{} - end:{}\n", Hex(kPhysicalKernelAddrStart),
-         Hex(kPhysicalKernelAddrEnd));
+  DebugPrint("multiboot flags: {}\n", Hex(multiboot->flags));
+  DebugPrint("Lower memory: {}\n", Hex(multiboot->mem_lower));
+  DebugPrint("Upper memory (kB): {}\n", Hex(multiboot->mem_upper));
+  DebugPrint("Kernel start:{} - end:{}\n", Hex(kPhysicalKernelAddrStart),
+             Hex(kPhysicalKernelAddrEnd));
   assert(kPhysicalKernelAddrEnd - kPhysicalKernelAddrStart <= kPageSize4M &&
          "The kernel should be able to fir in a 4MB page");
 
-  WriteF("Stack start: {}\n", &stack_start);
-  WriteF("mods_count: {}\n", multiboot->mods_count);
+  DebugPrint("Stack start: {}\n", &stack_start);
+  DebugPrint("mods_count: {}\n", multiboot->mods_count);
   if (multiboot->mods_count) {
     auto *mod = multiboot->getModuleBegin();
-    WriteF("module start: {}\n", Hex(mod->mod_start));
-    WriteF("module end: {}\n", Hex(mod->mod_end));
-    WriteF("module size: {}\n", mod->getModuleSize());
+    DebugPrint("module start: {}\n", Hex(mod->mod_start));
+    DebugPrint("module end: {}\n", Hex(mod->mod_end));
+    DebugPrint("module size: {}\n", mod->getModuleSize());
 
     size_t size = mod->getModuleSize();
     char data[size + 1];
     data[size] = '\0';
     memcpy(data, mod->getModuleStart(), size);
-    WriteF("module contents: {}\n", data);
+    DebugPrint("module contents: {}\n", data);
   }
-  WriteF("framebuffer type: {}\n", Hex(multiboot->framebuffer_type));
-  WriteF("physical framebuffer address: {}\n",
-         Hex(multiboot->framebuffer_addr));
+  DebugPrint("framebuffer type: {}\n", Hex(multiboot->framebuffer_type));
+  DebugPrint("physical framebuffer address: {}\n",
+             Hex(multiboot->framebuffer_addr));
   assert(multiboot->framebuffer_addr <= UINT32_MAX &&
          "Framebuffer cannot fit in 32 bits.");
 
   // Test a user program loaded as a multiboot module.
-  WriteF("multiboot address: {}\n", multiboot);
+  DebugPrint("multiboot address: {}\n", multiboot);
   assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
 
   uint32_t mem_upper = multiboot->mem_upper;
-  uint32_t framebuffer_addr = static_cast<uint32_t>(multiboot->framebuffer_addr);
+  uint32_t framebuffer_addr =
+      static_cast<uint32_t>(multiboot->framebuffer_addr);
 
   {
     // Initialize stuff for the kernel to work.
@@ -130,7 +141,9 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
                                      /*allow_physical_reuse=*/true);
 
   size_t num_mods = multiboot->mods_count;
-  assert(num_mods < 2 && "Expected at least the kernel to be loaded with an optional initial ramdisk");
+  assert(num_mods < 2 &&
+         "Expected at least the kernel to be loaded with an optional initial "
+         "ramdisk");
 
   {
     toy::Unique<vfs::Directory> vfs;
@@ -138,12 +151,11 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
       auto *moduleinfo = multiboot->getModuleBegin();
       uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
       uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
-      WriteF("vfs size: {}\n", moduleinfo->getModuleSize());
+      DebugPrint("vfs size: {}\n", moduleinfo->getModuleSize());
       vfs = vfs::ParseVFS(modstart, modend);
     }
 
-    if (terminal::UsingGraphics())
-      GetKernelPageDirectory().RemovePage(nullptr);
+    if (terminal::UsingGraphics()) GetKernelPageDirectory().RemovePage(nullptr);
 
     KernelPostInit(num_mods, vfs.get());
   }
@@ -186,11 +198,16 @@ void KernelEnd() {
   DestroyScheduler();
 
   // Make sure all allocated memory was freed.
-  WriteF("Kernel memory still in use: {} B\n", GetKernelHeapUsed());
+  DebugPrint("Kernel memory still in use: {} B\n", GetKernelHeapUsed());
   assert(GetKernelHeapUsed() == 0 && "Kernel heap was not cleared!");
 
-  Write("Reached end of kernel.");
-  while (1) {}
+  DebugPrint("Reached end of kernel.");
+  uint8_t scancode = Read8(0x60);
+  DebugPrint("last scancode: {}\n", scancode);
+  while (1) {
+    char c = serial::Read();
+    serial::Put(c);
+  }
 }
 
 }  // namespace

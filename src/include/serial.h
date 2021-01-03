@@ -8,7 +8,7 @@ namespace serial {
 void Initialize();
 
 char Read();
-void Write(char c);
+void Put(char c);
 void Write(const char *str);
 
 }  // namespace serial

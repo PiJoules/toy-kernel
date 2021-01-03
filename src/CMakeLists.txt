@@ -6,7 +6,7 @@ add_library(cpp_objs STATIC
   kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp terminal.cpp Timer.cpp
   paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp task.cpp
   syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
-  serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp)
+  serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp print.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
 target_compile_options(cpp_objs
   PRIVATE -target i386

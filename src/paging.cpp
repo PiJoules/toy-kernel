@@ -3,6 +3,7 @@
 #include <knew.h>
 #include <ktask.h>
 #include <paging.h>
+#include <print.h>
 #include <stacktrace.h>
 
 namespace {
@@ -22,8 +23,8 @@ void HandlePageFault(registers_t *regs) {
   int id = regs->err_code & 0x10;
 
   terminal::WriteF("Page fault!!! When trying to {} {} \n- IP:{}\n",
-                   rw ? "write to" : "read from", terminal::Hex(faulting_addr),
-                   terminal::Hex(regs->eip));
+                   rw ? "write to" : "read from", print::Hex(faulting_addr),
+                   print::Hex(regs->eip));
   terminal::WriteF("- The page was {}\n", present ? "present" : "not present");
 
   if (reserved) terminal::Write("- Reserved bit was set\n");

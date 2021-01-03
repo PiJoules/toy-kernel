@@ -33,8 +33,7 @@ class DisableInterruptsRAII {
     DisableInterrupts();
   }
   ~DisableInterruptsRAII() {
-    if (interrupts_enabled_)
-      EnableInterrupts();
+    if (interrupts_enabled_) EnableInterrupts();
   }
 
  private:

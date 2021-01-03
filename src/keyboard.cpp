@@ -6,7 +6,6 @@
 #include <ktype.h>
 #include <panic.h>
 
-using terminal::Hex;
 using terminal::Put;
 using terminal::WriteF;
 
@@ -127,7 +126,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
       return WriteF(
           "WARNING: Found an unmapped scancode that doesn't have an ascii "
           "character: {}\n",
-          Hex(scancode));
+          print::Hex(scancode));
 
     switch (PreviousAction) {
       case NOACTION:
@@ -151,7 +150,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
 
   // TODO: Once we actually implement mappings for all scancodes, this
   // should be replaced with an assert.
-  WriteF("WARNING: Unhandled scancode {}\n", Hex(scancode));
+  WriteF("WARNING: Unhandled scancode {}\n", print::Hex(scancode));
 }
 
 }  // namespace

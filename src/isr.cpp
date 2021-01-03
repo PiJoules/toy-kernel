@@ -8,8 +8,9 @@
 #include <ktask.h>
 #include <paging.h>
 #include <panic.h>
+#include <print.h>
 
-using terminal::Hex;
+using print::Hex;
 
 isr_t interrupt_handlers[256];
 
@@ -29,7 +30,7 @@ void DumpRegisters(const registers_t *regs) {
         terminal::Write("Occurred within LDT segment ");
 
       auto index = (err >> 3) & 0x1FFF;
-      terminal::WriteF("{}\n", terminal::Hex(index));
+      terminal::WriteF("{}\n", Hex(index));
     }
   }
 

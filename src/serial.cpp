@@ -29,13 +29,13 @@ char Read() {
   return Read8(kCOM1);
 }
 
-void Write(char c) {
+void Put(char c) {
   while (!IsTransmitEmpty()) {}
   Write8(kCOM1, c);
 }
 
 void Write(const char *str) {
-  for (size_t size = strlen(str), i = 0; i < size; ++i) Write(str[i]);
+  for (size_t size = strlen(str), i = 0; i < size; ++i) Put(str[i]);
 }
 
 }  // namespace serial
