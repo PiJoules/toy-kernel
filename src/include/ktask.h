@@ -29,7 +29,7 @@ constexpr uint32_t kKernelCodeSegment = 0x08;
 constexpr uint32_t kUserCodeSegment = 0x1b;
 
 class Task {
- public:
+ private:
   Task(TaskFunc func, void *arg, bool user = false);
 
   /**
@@ -40,7 +40,10 @@ class Task {
    */
   Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user = false);
 
-  static Task CreateUserTask(TaskFunc func, void *arg);
+ public:
+  static Task CreateKernelTask(TaskFunc func, void *arg);
+  static Task CreateKernelTask(TaskFunc func, void *arg,
+                               uint32_t *stack_allocation);
   static Task CreateUserTask(TaskFunc func, size_t codesize, void *arg);
 
   ~Task();
@@ -110,8 +113,6 @@ class Task {
   }
 
   void Join();
-
-  bool ShouldCopyUsercode() const { return userfunc_; }
 
  private:
   friend void InitScheduler();

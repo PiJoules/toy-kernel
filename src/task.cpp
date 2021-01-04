@@ -9,11 +9,9 @@
 #include <panic.h>
 #include <syscall.h>
 
-// FIXME: This is extern so functions in task.s can access it, but it should
-// instead probably just be accesswd through GetCurrentTask().
-Task *CurrentTask = nullptr;
-
 namespace {
+
+Task *CurrentTask = nullptr;
 
 uint32_t next_tid = 0;
 
@@ -104,7 +102,10 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
 
   getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
 
-  if (user) esp0_allocation = toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE);
+  if (user) {
+    esp0_allocation = toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE);
+    userfunc_ = func;
+  }
 
   assert(ReadyQueue && "Scheduling has not yet been initialized.");
 
@@ -117,16 +118,20 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
 
 // RVO guarantees that the destructor will not be called multiple times for
 // these functions that return and create tasks.
-Task Task::CreateUserTask(TaskFunc func, void *arg) {
-  return Task(func, arg, /*user=*/true);
-}
-
 Task Task::CreateUserTask(TaskFunc func, size_t codesize, void *arg) {
-  Task t = CreateUserTask(func, arg);
+  Task t(func, arg, /*user=*/true);
   assert(codesize && "Expected a non-zero size for user code");
-  t.userfunc_ = func;
   t.usercode_size_ = codesize;
   return t;
+}
+
+Task Task::CreateKernelTask(TaskFunc func, void *arg) {
+  return Task(func, arg, /*user=*/false);
+}
+
+Task Task::CreateKernelTask(TaskFunc func, void *arg,
+                            uint32_t *stack_allocation) {
+  return Task(func, arg, stack_allocation, /*user=*/false);
 }
 
 Task::~Task() {
@@ -272,7 +277,7 @@ void schedule(const X86Registers *regs) {
 
   SwitchPageDirectory(task->getPageDirectory());
 
-  if (first_task_run && jump_to_user && task->ShouldCopyUsercode()) {
+  if (first_task_run && jump_to_user) {
     // This will be the first instance this user task should run. In this case,
     // we should copy the code into its own address space.
     // FIXME: We skip the first 4MB because we could still need to read

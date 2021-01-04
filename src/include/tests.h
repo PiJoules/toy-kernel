@@ -148,4 +148,6 @@ bool AssertNotEqual(const T1 &found, const T2 &expected, const char *found_expr,
 
 }  // namespace
 
+void RunTests();
+
 #endif

@@ -333,8 +333,8 @@ TEST(SimpleTasks) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Task t(func, &val, stack);
-  Task t2(func2, &val2, stack2);
+  Task t = Task::CreateKernelTask(func, &val, stack);
+  Task t2 = Task::CreateKernelTask(func2, &val2, stack2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -358,7 +358,7 @@ TEST(TaskExit) {
   uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
 
   uint32_t x = 10;
-  Task t(func3, &x, stack);
+  Task t = Task::CreateKernelTask(func3, &x, stack);
 
   t.Join();
   ASSERT_EQ(x, 11);
@@ -368,8 +368,8 @@ TEST(DefaultStackAllocation) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Task t(func, &val);
-  Task t2(func2, &val2);
+  Task t = Task::CreateKernelTask(func, &val);
+  Task t2 = Task::CreateKernelTask(func2, &val2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -387,8 +387,8 @@ TEST(JoinOnDestructor) {
   volatile uint32_t val3 = 0;
 
   {
-    Task t(func, &val);
-    Task t2(func2, &val2);
+    Task t = Task::CreateKernelTask(func, &val);
+    Task t2 = Task::CreateKernelTask(func2, &val2);
     for (int i = 0; i < 300; ++i) ++val3;
   }
 
@@ -487,7 +487,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Task t(PageFaultTaskFunc, &x);
+    Task t = Task::CreateKernelTask(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
@@ -501,7 +501,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Task t(PageFaultTaskFunc, &x);
+    Task t = Task::CreateKernelTask(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
