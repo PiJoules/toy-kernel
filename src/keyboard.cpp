@@ -100,7 +100,7 @@ char ShiftedKey(char pressed_key) {
   return pressed_key;
 }
 
-void KeyboardCallback([[maybe_unused]] registers_t *regs) {
+void KeyboardCallback([[maybe_unused]] X86Registers *regs) {
   uint8_t scancode = Read8(0x60);
 
   // TODO: Handle other pressed codes >= 0xE0.

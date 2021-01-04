@@ -53,7 +53,7 @@ void *kSyscalls[] = {
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 
-void SyscallHandler(registers_t *regs) {
+void SyscallHandler(X86Registers *regs) {
   auto syscall_num = regs->eax;
   assert(syscall_num < kNumSyscalls && "Invalid syscall!");
   void *syscall = kSyscalls[syscall_num];

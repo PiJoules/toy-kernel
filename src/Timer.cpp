@@ -12,7 +12,7 @@ constexpr uint32_t kQuanta = 10;
 
 namespace {
 
-void TimerCallback(registers_t *regs) {
+void TimerCallback(X86Registers *regs) {
   ++tick;
 
   // NOTE: If it turns out the schedule() function takes longer than it does for

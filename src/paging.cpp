@@ -10,7 +10,7 @@ namespace {
 PageDirectory KernelPageDir;
 PhysicalBitmap4M PhysicalBitmap;
 
-void HandlePageFault(registers_t *regs) {
+void HandlePageFault(X86Registers *regs) {
   asm volatile("cli");
   uint32_t faulting_addr;
   asm volatile("mov %%cr2, %0" : "=r"(faulting_addr));
@@ -35,8 +35,23 @@ void HandlePageFault(registers_t *regs) {
   if (GetCurrentTask() == GetMainKernelTask()) {
     DebugPrint("- Occurred in main kernel task.\n");
   } else {
-    DebugPrint("- Occurred in task: {}.\n", GetCurrentTask()->getID());
+    DebugPrint("- Occurred in task: {}\n", GetCurrentTask()->getID());
   }
+
+  if (KERNEL_START <= (uint32_t)faulting_addr &&
+      (uint32_t)faulting_addr < KERNEL_END)
+    DebugPrint("- Accessing page in kernel binary memory\n");
+
+  if (PAGE_DIRECTORY_REGION_START <= (uint32_t)faulting_addr &&
+      (uint32_t)faulting_addr < PAGE_DIRECTORY_REGION_END)
+    DebugPrint("- Accessing page in page directory region\n");
+
+  if (KERN_HEAP_BEGIN <= (uint32_t)faulting_addr &&
+      (uint32_t)faulting_addr < KERN_HEAP_END)
+    DebugPrint("- Accessing page in kernel heap memory\n");
+
+  if (USER_START <= (uint32_t)faulting_addr)
+    DebugPrint("- Accessing page in user memory\n");
 
   DumpRegisters(regs);
 
@@ -90,8 +105,8 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K) {
   // In actuality, we only have access to 128 MB of memory, so we can just mark
   // it as used we don't accidentally access it again.
   PhysicalBitmap.ReservePhysical(/*num_pages=*/32);  // 4 x 32 MB = 128 MB
-  uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB | PG_USER;
-  // uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
+
+  uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
 
   // Pages reserved for the kernel (4MB - 12MB).
   KernelPageDir.AddPage(reinterpret_cast<void *>(KERNEL_START),
@@ -127,9 +142,9 @@ void PageDirectory::RemovePage(void *vaddr) {
   asm volatile("invlpg %0" ::"m"(vaddr));
 }
 
-IdentityMapRAII::IdentityMapRAII(void *addr)
+IdentityMapRAII::IdentityMapRAII(void *addr, uint8_t flags)
     : page_(PageIndex4M(reinterpret_cast<uint32_t>(addr))) {
-  GetKernelPageDirectory().AddPage(addr, addr, PG_USER);
+  GetKernelPageDirectory().AddPage(addr, addr, flags);
 }
 
 IdentityMapRAII::~IdentityMapRAII() {

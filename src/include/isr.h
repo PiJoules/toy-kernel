@@ -3,7 +3,7 @@
 
 #include <kstdint.h>
 
-struct registers_t {
+struct X86Registers {
   uint32_t ds;                                      // Data segment selector
   uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;  // Pushed by pusha.
   uint32_t int_no, err_code;  // Interrupt number and error code (if applicable)
@@ -14,7 +14,7 @@ struct registers_t {
   // stack pointer and SS.
   uint32_t eip, cs, eflags, useresp, ss;
 };
-static_assert(sizeof(registers_t) == 64, "Size of registers_t changed");
+static_assert(sizeof(X86Registers) == 64, "Size of X86Registers changed");
 
 #define IRQ0 32
 #define IRQ1 33
@@ -36,10 +36,10 @@ static_assert(sizeof(registers_t) == 64, "Size of registers_t changed");
 // Enables registration of callbacks for interrupts or IRQs.
 // For IRQs, to ease confusion, use the #defines above as the
 // first parameter.
-using isr_t = void (*)(registers_t *);
+using isr_t = void (*)(X86Registers *);
 void RegisterInterruptHandler(uint8_t interrupt, isr_t handler);
 void UnregisterInterruptHandler(uint8_t interrupt);
 isr_t GetInterruptHandler(uint8_t interrupt);
-void DumpRegisters(const registers_t *regs);
+void DumpRegisters(const X86Registers *regs);
 
 #endif

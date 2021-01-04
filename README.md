@@ -101,6 +101,14 @@ $ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
 
 `grep` for them.
 
+## Debugging
+
+### Flat User Binaries
+
+```sh
+$ objdump -b binary user_program.bin -D -m i386 |& less
+```
+
 ## Resources
 
 - QEMU

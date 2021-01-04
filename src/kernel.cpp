@@ -25,32 +25,17 @@ namespace {
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
 
-void UserspaceFunc([[maybe_unused]] void *args) {
-  syscall_terminal_write("Printing this through a syscall.\n");
-  syscall_terminal_write("Printing this through a syscall2.\n");
-}
-
-void Nested() {
-  syscall_terminal_write("Printing this through a syscall3.\n");
-  syscall_terminal_write("Printing this through a syscall4.\n");
-}
-
-void UserspaceFunc2([[maybe_unused]] void *args) { Nested(); }
-
-Task RunUserProgram(const vfs::Directory &vfs, const toy::String &filename,
-                    void *&usercode, void *arg = nullptr) {
+Task RunFlatUserBinary(const vfs::Directory &vfs, const toy::String &filename,
+                       void *arg = nullptr) {
   const vfs::Node *program = vfs.getFile(filename);
   assert(program && "Could not find user_program.bin");
 
   const vfs::File &file = program->AsFile();
   size_t size = file.contents.size();
-  DebugPrint("user_program.bin is {} bytes\n", size);
-
-  usercode = kmalloc(size);
-  memcpy(usercode, file.contents.data(), size);
+  DebugPrint("{} is {} bytes\n", filename.c_str(), size);
 
   // Actually create and run the user tasks.
-  return Task::CreateUserTask((TaskFunc)usercode, size, arg);
+  return Task::CreateUserTask((TaskFunc)file.contents.data(), size, arg);
 }
 
 /**
@@ -145,22 +130,14 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
 void KernelLoadPrograms(const vfs::Directory *vfs) {
   DebugPrint("Checking userspace tasks...\n");
 
-  // Run some tasks in userspace.
-  Task t1 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
-  Task t2 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
+  Task t1 = RunFlatUserBinary(*vfs, "user_program.bin");
+  DebugPrint("Launched task {}\n", t1.getID());
+  Task t2 = RunFlatUserBinary(*vfs, "user_program.bin");
+  DebugPrint("Launched task {}\n", t2.getID());
   t1.Join();
   t2.Join();
-
-  DebugPrint("Created some threads.\n");
-
-  void *usercode, *usercode2;
-  Task t3 = RunUserProgram(*vfs, "user_program.bin", usercode);
-  Task t4 = RunUserProgram(*vfs, "user_program.bin", usercode2);
-  t3.Join();
-  t4.Join();
-
-  kfree(usercode);
-  kfree(usercode2);
+  assert(t1.getPageDirectory().get() != t2.getPageDirectory().get() &&
+         "Expected user tasks to have unique address spaces.");
 }
 
 void KernelEnd() {

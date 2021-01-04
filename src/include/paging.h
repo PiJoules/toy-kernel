@@ -32,9 +32,9 @@
 #define PAGING_FLAG 0x80000000  // CR0 - bit 31
 #define PSE_FLAG 0x00000010     // CR4 - bit 4
 #define PG_PRESENT 0x00000001   // page directory / table
-#define PG_WRITE 0x00000002
-#define PG_USER 0x00000004
-#define PG_4MB 0x00000080
+#define PG_WRITE 0x00000002     // page is writable
+#define PG_USER 0x00000004      // page can be accessed by user (et. all)
+#define PG_4MB 0x00000080       // pages are 4MB
 
 constexpr uint8_t kPageFaultInterrupt = 14;
 
@@ -185,7 +185,7 @@ PhysicalBitmap4M &GetPhysicalBitmap4M();
 void SwitchPageDirectory(PageDirectory &pd);
 
 struct IdentityMapRAII {
-  IdentityMapRAII(void *addr);
+  IdentityMapRAII(void *addr, uint8_t flags);
   ~IdentityMapRAII();
 
  private:

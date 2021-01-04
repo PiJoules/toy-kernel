@@ -13,7 +13,7 @@ using print::Hex;
 
 isr_t interrupt_handlers[256];
 
-void DumpRegisters(const registers_t *regs) {
+void DumpRegisters(const X86Registers *regs) {
   if (regs->int_no == 0xd) {
     DebugPrint("General protection fault\n");
     if (auto err = regs->err_code) {
@@ -86,15 +86,14 @@ isr_t GetInterruptHandler(uint8_t interrupt) {
 extern "C" {
 
 // This gets called from our ASM interrupt handler stub.
-void isr_handler(registers_t *regs) {
-  if (isr_t handler = interrupt_handlers[regs->int_no]) {
-    return handler(regs);
-  }
+void isr_handler(X86Registers *regs) {
+  if (isr_t handler = interrupt_handlers[regs->int_no]) return handler(regs);
+
   DumpRegisters(regs);
   PANIC("Unhandled interrupt!");
 }
 
-void irq_handler(registers_t *regs) {
+void irq_handler(X86Registers *regs) {
   // Send an EOI (end of interrupt) signal to the PICs.
   // If this interrupt involved the slave.
   if (regs->int_no >= 40) {

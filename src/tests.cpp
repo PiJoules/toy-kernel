@@ -115,7 +115,7 @@ TEST_SUITE(Printing) {
 }
 
 uint32_t RegNum;
-void InterruptHandler(registers_t *regs) { RegNum = regs->int_no; }
+void InterruptHandler(X86Registers *regs) { RegNum = regs->int_no; }
 
 TEST(HandleInterrupt) {
   RegNum = 0;
@@ -397,22 +397,14 @@ TEST(JoinOnDestructor) {
   ASSERT_EQ(val3, 300);
 }
 
-TEST(UserTasks) {
-  uint32_t val = 0;
-  uint32_t val2 = 0;
-  Task t = Task::CreateUserTask(func, &val);
-  Task t2 = Task::CreateUserTask(func2, &val2);
-
-  ASSERT_NE(t.getPageDirectory().get(), t2.getPageDirectory().get());
-}
-
 TEST_SUITE(Tasking) {
   RUN_TEST(TaskIDs);
   RUN_TEST(SimpleTasks);
   RUN_TEST(TaskExit);
   RUN_TEST(DefaultStackAllocation);
   RUN_TEST(JoinOnDestructor);
-  RUN_TEST(UserTasks);
+
+  // TODO: Add test to assert user tasks get different address spaces.
 }
 
 TEST(PageFunctions) {
@@ -435,7 +427,7 @@ TEST(PagingTest) {
   ASSERT_NE(pd1.get(), pd2.get());
   ASSERT_TRUE(PageDirectory::isPhysicalFree(page_index));
 
-  pd1.AddPage(virt_addr, phys_addr, PG_USER);
+  pd1.AddPage(virt_addr, phys_addr, /*flags=*/0);
   ASSERT_FALSE(PageDirectory::isPhysicalFree(page_index));
 
   SwitchPageDirectory(pd1);
@@ -458,7 +450,7 @@ TEST(PagingTest) {
   ASSERT_TRUE(PageDirectory::isPhysicalFree(page_index));
 }
 
-void PageFaultHandler(registers_t *regs) {
+void PageFaultHandler(X86Registers *regs) {
   RegNum = regs->int_no;
 
   // Exit here or we will go back to the instruction that caused the page fault,

@@ -47,35 +47,35 @@ class Task {
 
   // NOTE: These values are assigned in task.s. Be sure to update that file if
   // these are ever changed.
-  struct regs_t {
+  struct X86TaskRegs {
     uint32_t esp, ebp, eax, ebx, ecx, edx, esi, edi, eflags, eip;
     uint16_t ds, es, fs, gs, cs;  // These must be 16-bit aligned.
 
     // 2-byte Padding
   };
-  static_assert(sizeof(regs_t) == 52,
+  static_assert(sizeof(X86TaskRegs) == 52,
                 "Size of regs changed! If this is intended, be sure to also "
                 "update task.s");
 
   // These are here to provide easy-to-lookup offsets for task.s.
-  static_assert(offsetof(regs_t, esp) == 0);
-  static_assert(offsetof(regs_t, ebp) == 4);
-  static_assert(offsetof(regs_t, eax) == 8);
-  static_assert(offsetof(regs_t, ebx) == 12);
-  static_assert(offsetof(regs_t, ecx) == 16);
-  static_assert(offsetof(regs_t, edx) == 20);
-  static_assert(offsetof(regs_t, esi) == 24);
-  static_assert(offsetof(regs_t, edi) == 28);
-  static_assert(offsetof(regs_t, eflags) == 32);
-  static_assert(offsetof(regs_t, eip) == 36);
-  static_assert(offsetof(regs_t, ds) == 40);
-  static_assert(offsetof(regs_t, es) == 42);
-  static_assert(offsetof(regs_t, fs) == 44);
-  static_assert(offsetof(regs_t, gs) == 46);
-  static_assert(offsetof(regs_t, cs) == 48);
+  static_assert(offsetof(X86TaskRegs, esp) == 0);
+  static_assert(offsetof(X86TaskRegs, ebp) == 4);
+  static_assert(offsetof(X86TaskRegs, eax) == 8);
+  static_assert(offsetof(X86TaskRegs, ebx) == 12);
+  static_assert(offsetof(X86TaskRegs, ecx) == 16);
+  static_assert(offsetof(X86TaskRegs, edx) == 20);
+  static_assert(offsetof(X86TaskRegs, esi) == 24);
+  static_assert(offsetof(X86TaskRegs, edi) == 28);
+  static_assert(offsetof(X86TaskRegs, eflags) == 32);
+  static_assert(offsetof(X86TaskRegs, eip) == 36);
+  static_assert(offsetof(X86TaskRegs, ds) == 40);
+  static_assert(offsetof(X86TaskRegs, es) == 42);
+  static_assert(offsetof(X86TaskRegs, fs) == 44);
+  static_assert(offsetof(X86TaskRegs, gs) == 46);
+  static_assert(offsetof(X86TaskRegs, cs) == 48);
 
-  const regs_t &getRegs() const { return regs_; }
-  regs_t &getRegs() { return regs_; }
+  const X86TaskRegs &getRegs() const { return regs_; }
+  X86TaskRegs &getRegs() { return regs_; }
   uint32_t getID() const { return id_; }
 
   PageDirectory &getPageDirectory() const { return pd_allocation; }
@@ -95,6 +95,10 @@ class Task {
     return stack_bottom;
   }
 
+  /**
+   * This serves as the stack that the kernel will jump to on a syscall
+   * interrupt. Each task must have its own allocated esp0 stack.
+   */
   uint32_t *getEsp0StackPointer() const {
     assert(isUserTask() && "Should not need esp0 for a kernel task");
     assert(esp0_allocation);
@@ -112,7 +116,7 @@ class Task {
  private:
   friend void InitScheduler();
   friend void task_exit();
-  friend void schedule(const registers_t *);
+  friend void schedule(const X86Registers *);
 
   // This is used specifically by InitScheduler() for initializing the default
   // kernel task without needing to set anything on the default stack.
@@ -124,7 +128,7 @@ class Task {
   volatile TaskState state_;
   bool first_run_;
 
-  regs_t regs_;
+  X86TaskRegs regs_;
 
   // These should be null for the main kernel task.
   uint32_t *stack_allocation = nullptr;
@@ -139,7 +143,7 @@ class Task {
 void exit_this_task();
 
 void InitScheduler();
-void schedule(const registers_t *regs);
+void schedule(const X86Registers *regs);
 void DestroyScheduler();
 
 #endif
