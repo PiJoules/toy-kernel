@@ -2,7 +2,6 @@
 // Part of this code is modified from Bran's kernel development tutorials.
 // Rewritten for JamesM's kernel development tutorials.
 
-#include <Terminal.h>
 #include <io.h>
 #include <isr.h>
 #include <ktask.h>
@@ -16,58 +15,58 @@ isr_t interrupt_handlers[256];
 
 void DumpRegisters(const registers_t *regs) {
   if (regs->int_no == 0xd) {
-    terminal::Write("General protection fault\n");
+    DebugPrint("General protection fault\n");
     if (auto err = regs->err_code) {
       if (err & 1)
-        terminal::Write("Exception originated externally to the processor\n");
+        DebugPrint("Exception originated externally to the processor\n");
 
       auto table = (err >> 1) & 0x3;
       if (table == 0)
-        terminal::Write("Occurred within GDT segment ");
+        DebugPrint("Occurred within GDT segment ");
       else if (table == 1 || table == 3)
-        terminal::Write("Occurred within IDT segment ");
+        DebugPrint("Occurred within IDT segment ");
       else if (table == 2)
-        terminal::Write("Occurred within LDT segment ");
+        DebugPrint("Occurred within LDT segment ");
 
       auto index = (err >> 3) & 0x1FFF;
-      terminal::WriteF("{}\n", Hex(index));
+      DebugPrint("{}\n", Hex(index));
     }
   }
 
   bool user = GetCurrentTask()->isUserTask();
 
-  terminal::Write("received interrupt in ");
+  DebugPrint("received interrupt in ");
   if (GetCurrentTask() == GetMainKernelTask()) {
-    terminal::Write("main kernel task");
+    DebugPrint("main kernel task");
   } else if (user) {
-    terminal::WriteF("user task {}", GetCurrentTask()->getID());
+    DebugPrint("user task {}", GetCurrentTask()->getID());
   } else {
-    terminal::WriteF("kernel task {}", GetCurrentTask()->getID());
+    DebugPrint("kernel task {}", GetCurrentTask()->getID());
   }
-  terminal::WriteF(": {}\n", Hex(regs->int_no));
+  DebugPrint(": {}\n", Hex(regs->int_no));
 
-  terminal::WriteF("ds:  {} edi: {} esi: {}\n", Hex(regs->ds), Hex(regs->edi),
-                   Hex(regs->esi));
-  terminal::WriteF("ebp: {} esp: {} ebx: {}\n", Hex(regs->ebp), Hex(regs->esp),
-                   Hex(regs->ebx));
-  terminal::WriteF("edx: {} ecx: {} eax: {}\n", Hex(regs->edx), Hex(regs->ecx),
-                   Hex(regs->eax));
-  terminal::WriteF("error code: {}\n", Hex(regs->err_code));
-  terminal::WriteF("eip: {}\n", Hex(regs->eip));
-  terminal::WriteF("cs: {}\n", Hex(regs->cs));
-  terminal::WriteF("eflags: {}\n", Hex(regs->eflags));
-  terminal::WriteF("useresp: {}\n", Hex(regs->useresp));
-  terminal::WriteF("ss: {}\n", Hex(regs->ss));
+  DebugPrint("ds:  {} edi: {} esi: {}\n", Hex(regs->ds), Hex(regs->edi),
+             Hex(regs->esi));
+  DebugPrint("ebp: {} esp: {} ebx: {}\n", Hex(regs->ebp), Hex(regs->esp),
+             Hex(regs->ebx));
+  DebugPrint("edx: {} ecx: {} eax: {}\n", Hex(regs->edx), Hex(regs->ecx),
+             Hex(regs->eax));
+  DebugPrint("error code: {}\n", Hex(regs->err_code));
+  DebugPrint("eip: {}\n", Hex(regs->eip));
+  DebugPrint("cs: {}\n", Hex(regs->cs));
+  DebugPrint("eflags: {}\n", Hex(regs->eflags));
+  DebugPrint("useresp: {}\n", Hex(regs->useresp));
+  DebugPrint("ss: {}\n", Hex(regs->ss));
 
   // Dump the stack
   uint32_t *esp = (uint32_t *)regs->esp;
-  terminal::Write("Stack dump:\n");
+  DebugPrint("Stack dump:\n");
   constexpr int dump_size = 28;
   assert(dump_size % 4 == 0 && "The stack dump size must be a multiple of 4");
   for (int i = dump_size; i >= 0; i -= 4) {
     uint32_t *ptr = esp + i;
-    terminal::WriteF("{}: {} {} {} {}\n", ptr, Hex(*ptr), Hex(ptr[1]),
-                     Hex(ptr[2]), Hex(ptr[3]));
+    DebugPrint("{}: {} {} {} {}\n", ptr, Hex(*ptr), Hex(ptr[1]), Hex(ptr[2]),
+               Hex(ptr[3]));
   }
 }
 

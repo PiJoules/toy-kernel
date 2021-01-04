@@ -1,4 +1,3 @@
-#include <Terminal.h>
 #include <kassert.h>
 #include <kernel.h>
 #include <stacktrace.h>
@@ -10,8 +9,8 @@ void __assert(bool condition, const char *msg, const char *filename, int line,
   if (condition) return;
 
   asm volatile("cli");  // Disable interrupts.
-  terminal::WriteF("\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename,
-                   line, pretty_func, msg);
+  DebugPrint("\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename, line,
+             pretty_func, msg);
 
   stacktrace::PrintStackTrace();
 

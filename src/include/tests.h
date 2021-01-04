@@ -1,7 +1,7 @@
 #ifndef TESTS_H_
 #define TESTS_H_
 
-#include <Terminal.h>
+#include <kernel.h>
 
 /**
  * Small testing framework for this kernel.
@@ -21,14 +21,14 @@ bool TestFailed = false;
 #define TEST_SUITE(Suite) static void Suite()
 #define SETUP(Setup) \
   { TestingSetup = Setup; }
-#define RUN_TEST(TestName)                                      \
-  {                                                             \
-    if (TestingSetup) TestingSetup();                           \
-    TestFailed = false;                                         \
-    terminal::Write(STR(TestName) " ... ");                     \
-    TestName();                                                 \
-    terminal::WriteF("{}\n", TestFailed ? "FAILED" : "PASSED"); \
-    if (TestingTeardown) TestingTeardown();                     \
+#define RUN_TEST(TestName)                                \
+  {                                                       \
+    if (TestingSetup) TestingSetup();                     \
+    TestFailed = false;                                   \
+    DebugPrint(STR(TestName) " ... ");                    \
+    TestName();                                           \
+    DebugPrint("{}\n", TestFailed ? "FAILED" : "PASSED"); \
+    if (TestingTeardown) TestingTeardown();               \
   }
 
 #define ASSERT_TRUE(val1)                                         \
@@ -62,14 +62,14 @@ class TestingFramework {
  public:
   TestingFramework() {
     NumFailures = 0;
-    terminal::Write("\nRunning tests...\n");
+    DebugPrint("\nRunning tests...\n");
   }
 
   ~TestingFramework() {
     if (NumFailures)
-      terminal::WriteF("{} tests failed\n\n", NumFailures);
+      DebugPrint("{} tests failed\n\n", NumFailures);
     else
-      terminal::Write("All tests passed!\n\n");
+      DebugPrint("All tests passed!\n\n");
     while (NumFailures) {}
   }
 
@@ -86,11 +86,11 @@ inline bool AssertStrEqual(const char *found, const char *expected,
                            const char *found_expr, const char *expected_expr,
                            const char *file, int line) {
   if (strcmp(found, expected) == 0) return true;
-  terminal::WriteF("Strings are not equal {}:{}\n", file, line);
-  terminal::WriteF("Found `{}` which is:\n", found_expr);
-  terminal::WriteF("  {}\n\n", found);
-  terminal::WriteF("Expected `{}` which is:\n", expected_expr);
-  terminal::WriteF("  {}\n\n", expected);
+  DebugPrint("Strings are not equal {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is:\n", found_expr);
+  DebugPrint("  {}\n\n", found);
+  DebugPrint("Expected `{}` which is:\n", expected_expr);
+  DebugPrint("  {}\n\n", expected);
   ++NumFailures;
   TestFailed = true;
   return false;
@@ -100,8 +100,8 @@ template <typename T1>
 bool AssertTrue(const T1 &found, const char *found_expr, const char *file,
                 int line) {
   if (found) return true;
-  terminal::WriteF("Expected true value at {}:{}\n", file, line);
-  terminal::WriteF("Found `{}` which is false\n", found_expr);
+  DebugPrint("Expected true value at {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is false\n", found_expr);
   ++NumFailures;
   TestFailed = true;
   return false;
@@ -111,8 +111,8 @@ template <typename T1>
 bool AssertFalse(const T1 &found, const char *found_expr, const char *file,
                  int line) {
   if (!found) return true;
-  terminal::WriteF("Expected false value at {}:{}\n", file, line);
-  terminal::WriteF("Found `{}` which is true\n", found_expr);
+  DebugPrint("Expected false value at {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is true\n", found_expr);
   ++NumFailures;
   TestFailed = true;
   return false;
@@ -122,11 +122,11 @@ template <typename T1, typename T2>
 bool AssertEqual(const T1 &found, const T2 &expected, const char *found_expr,
                  const char *expected_expr, const char *file, int line) {
   if (found == expected) return true;
-  terminal::WriteF("Values are not equal {}:{}\n", file, line);
-  terminal::WriteF("Found `{}` which is:\n", found_expr);
-  terminal::WriteF("  {}\n\n", found);
-  terminal::WriteF("Expected `{}` which is:\n", expected_expr);
-  terminal::WriteF("  {}\n\n", expected);
+  DebugPrint("Values are not equal {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is:\n", found_expr);
+  DebugPrint("  {}\n\n", found);
+  DebugPrint("Expected `{}` which is:\n", expected_expr);
+  DebugPrint("  {}\n\n", expected);
   ++NumFailures;
   TestFailed = true;
   return false;
@@ -136,11 +136,11 @@ template <typename T1, typename T2>
 bool AssertNotEqual(const T1 &found, const T2 &expected, const char *found_expr,
                     const char *expected_expr, const char *file, int line) {
   if (found != expected) return true;
-  terminal::WriteF("Values are equal {}:{}\n", file, line);
-  terminal::WriteF("Found `{}` which is:\n", found_expr);
-  terminal::WriteF("  {}\n\n", found);
-  terminal::WriteF("Received `{}` which is:\n", expected_expr);
-  terminal::WriteF("  {}\n\n", expected);
+  DebugPrint("Values are equal {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is:\n", found_expr);
+  DebugPrint("  {}\n\n", found);
+  DebugPrint("Received `{}` which is:\n", expected_expr);
+  DebugPrint("  {}\n\n", expected);
   ++NumFailures;
   TestFailed = true;
   return false;

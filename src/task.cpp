@@ -1,5 +1,4 @@
 #include <DescriptorTables.h>
-#include <Terminal.h>
 #include <isr.h>
 #include <kassert.h>
 #include <kernel.h>

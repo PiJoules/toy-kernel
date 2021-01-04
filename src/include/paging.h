@@ -3,6 +3,7 @@
 
 #include <BitArray.h>
 #include <kstdint.h>
+#include <kstring.h>
 #include <panic.h>
 
 // Memory layout
@@ -58,9 +59,7 @@ constexpr size_t kPageDirSize = 4096;
 constexpr size_t kNumPageDirs =
     (PAGE_DIRECTORY_REGION_END - PAGE_DIRECTORY_REGION_START) / kPageDirSize;
 
-// FIXME: Eventually remove the `framebuffer_addr` argument.
-void InitializePaging(uint32_t high_mem, bool pages_4K,
-                      uint32_t framebuffer_addr);
+void InitializePaging(uint32_t high_mem, bool pages_4K);
 
 // NOTE: WE ARE USING 4MB PAGES!
 // Bitmap used for keeping track of which 4MB chunks of physical memory are

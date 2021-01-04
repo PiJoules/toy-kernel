@@ -1,13 +1,13 @@
-#include <Terminal.h>
+/**
+ * FIXME: This should be moved into user code and not remain in kernel code.
+ */
+
 #include <io.h>
 #include <isr.h>
 #include <kassert.h>
 #include <keyboard.h>
 #include <ktype.h>
 #include <panic.h>
-
-using terminal::Put;
-using terminal::WriteF;
 
 namespace {
 
@@ -108,7 +108,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
     // Key was pressed.
     switch (scancode) {
       case ENTER:
-        terminal::Put('\n');
+        serial::Put('\n');
         PreviousAction = NOACTION;
         return;
       case LCTRL:
@@ -123,7 +123,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
     if (pressed_key == NOCHAR[0])
       // TODO: Once we actually implement mappings for all scancodes, this
       // should be replaced with an assert.
-      return WriteF(
+      return DebugPrint(
           "WARNING: Found an unmapped scancode that doesn't have an ascii "
           "character: {}\n",
           print::Hex(scancode));
@@ -142,7 +142,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
     }
     PreviousAction = NOACTION;
 
-    return Put(pressed_key);
+    return serial::Put(pressed_key);
   } else if (scancode < 0xE0) {
     // Key was released.
     return;
@@ -150,7 +150,7 @@ void KeyboardCallback([[maybe_unused]] registers_t *regs) {
 
   // TODO: Once we actually implement mappings for all scancodes, this
   // should be replaced with an assert.
-  WriteF("WARNING: Unhandled scancode {}\n", print::Hex(scancode));
+  DebugPrint("WARNING: Unhandled scancode {}\n", print::Hex(scancode));
 }
 
 }  // namespace

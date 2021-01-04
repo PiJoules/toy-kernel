@@ -1,7 +1,9 @@
 #ifndef BITVECTOR_H_
 #define BITVECTOR_H_
 
+#include <kassert.h>
 #include <kmalloc.h>
+#include <kstring.h>
 
 namespace toy {
 

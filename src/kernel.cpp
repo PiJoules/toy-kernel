@@ -1,6 +1,5 @@
 #include <DescriptorTables.h>
 #include <Multiboot.h>
-#include <Terminal.h>
 #include <Timer.h>
 #include <io.h>
 #include <kassert.h>
@@ -16,8 +15,6 @@
 #include <vfs.h>
 
 using print::Hex;
-// using terminal::Write;
-// using terminal::WriteF;
 
 extern "C" uint8_t _start, _end;
 
@@ -27,14 +24,6 @@ namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
-
-/**
- * Printing to serial.
- */
-template <typename... Rest>
-void DebugPrint(const char *str, Rest... rest) {
-  print::Print(serial::Put, str, rest...);
-}
 
 void UserspaceFunc([[maybe_unused]] void *args) {
   syscall_terminal_write("Printing this through a syscall.\n");
@@ -64,24 +53,17 @@ Task RunUserProgram(const vfs::Directory &vfs, const toy::String &filename,
   return Task::CreateUserTask((TaskFunc)usercode, size, arg);
 }
 
-void KernelPostInit(size_t num_mods, const vfs::Directory *vfs);
-void KernelEnd();
-
-}  // namespace
-
-extern "C" void kernel_main(const Multiboot *multiboot) {
-  int stack_start;
-
-  // At this point, we do not know how to print stuff yet. That is, are we
-  // in VGA graphics mode or EGA text mode? We need to first identify where our
-  // frame buffer is.
-  if (multiboot->framebuffer_type == 1)
-    terminal::UseGraphicsTerminalPhysical(multiboot);
-  else
-    terminal::UseTextTerminal();
-
-  DebugPrint("Hello, kernel World!\n");
-
+/**
+ * Setup the kernel to allow full functionality by the time we leave this
+ * function. Set the number of modules provided in the multiboot. If there is at
+ * least one module, set the start and end of the first module in mod_start and
+ * mod_end. In this case, the mod_start pointer should be freed by the caller.
+ * If there are no modules, then these values are not set and unchanged
+ * from their initial values. Only the first is needed since that can carry the
+ * initial ramdisk.
+ */
+void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
+                 uint8_t **mod_start, uint8_t **mod_end) {
   DebugPrint("multiboot flags: {}\n", Hex(multiboot->flags));
   DebugPrint("Lower memory: {}\n", Hex(multiboot->mem_lower));
   DebugPrint("Upper memory (kB): {}\n", Hex(multiboot->mem_upper));
@@ -90,7 +72,6 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   assert(kPhysicalKernelAddrEnd - kPhysicalKernelAddrStart <= kPageSize4M &&
          "The kernel should be able to fir in a 4MB page");
 
-  DebugPrint("Stack start: {}\n", &stack_start);
   DebugPrint("mods_count: {}\n", multiboot->mods_count);
   if (multiboot->mods_count) {
     auto *mod = multiboot->getModuleBegin();
@@ -110,88 +91,76 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   assert(multiboot->framebuffer_addr <= UINT32_MAX &&
          "Framebuffer cannot fit in 32 bits.");
 
+  *num_mods = multiboot->mods_count;
+
   // Test a user program loaded as a multiboot module.
   DebugPrint("multiboot address: {}\n", multiboot);
   assert(reinterpret_cast<uint64_t>(multiboot) < USER_END);
 
   uint32_t mem_upper = multiboot->mem_upper;
-  uint32_t framebuffer_addr =
-      static_cast<uint32_t>(multiboot->framebuffer_addr);
 
-  {
-    // Initialize stuff for the kernel to work.
-    InitDescriptorTables();
-    InitializePaging(mem_upper, /*pages_4K=*/true, framebuffer_addr);
-    InitializeKernelHeap();
-    InitTimer(50);
-    InitScheduler();
-    InitializeSyscalls();
-    InitializeKeyboard();
-  }
+  // Initialize stuff for the kernel to work.
+  InitDescriptorTables();
+  DebugPrint("Descriptor tables initialized.\n");
+  InitializePaging(mem_upper, /*pages_4K=*/true);
+  DebugPrint("Paging initialized.\n");
+  InitializeKernelHeap();
+  DebugPrint("Heap initialized.\n");
+  InitTimer(50);
+  DebugPrint("Timer initialized.\n");
+  InitScheduler();
+  DebugPrint("Scheduler initialized.\n");
+  InitializeSyscalls();
+  DebugPrint("Syscalls initialized.\n");
 
-  // NOTE: After we initialize paging, we may not be able to access all data
-  // pointed to by multiboot located in the first page of memory. All that data
-  // should be copied over now to some local variable if we want to access it
-  // after paging is enabled.
-  // FIXME: We only need this check because the buffer when using textual mode
-  // is identity mapped, but we should map it elsewhere. Ideally, we'd have the
-  // first page unmapped by default.
-  if (terminal::UsingGraphics())
+  // FIXME: The keyboard driver should eventually be moved to userspace also.
+  InitializeKeyboard();
+  DebugPrint("Keyboard initialized.\n");
+
+  if (*num_mods) {
+    // NOTE: After we initialize paging, we may not be able to access all data
+    // pointed to by multiboot located in the first page of memory. All that
+    // data should be copied over now to some local variable if we want to
+    // access it after paging is enabled.
     GetKernelPageDirectory().AddPage(nullptr, nullptr, 0,
                                      /*allow_physical_reuse=*/true);
 
-  size_t num_mods = multiboot->mods_count;
-  assert(num_mods < 2 &&
-         "Expected at least the kernel to be loaded with an optional initial "
-         "ramdisk");
+    auto *moduleinfo = multiboot->getModuleBegin();
+    size_t modsize = moduleinfo->getModuleSize();
 
-  {
-    toy::Unique<vfs::Directory> vfs;
-    if (num_mods) {
-      auto *moduleinfo = multiboot->getModuleBegin();
-      uint8_t *modstart = reinterpret_cast<uint8_t *>(moduleinfo->mod_start);
-      uint8_t *modend = reinterpret_cast<uint8_t *>(moduleinfo->mod_end);
-      DebugPrint("vfs size: {}\n", moduleinfo->getModuleSize());
-      vfs = vfs::ParseVFS(modstart, modend);
-    }
+    *mod_start = toy::kmalloc<uint8_t>(modsize);
+    memcpy(*mod_start, reinterpret_cast<uint8_t *>(moduleinfo->mod_start),
+           modsize);
+    *mod_end = *mod_start + modsize;
 
-    if (terminal::UsingGraphics()) GetKernelPageDirectory().RemovePage(nullptr);
-
-    KernelPostInit(num_mods, vfs.get());
+    GetKernelPageDirectory().RemovePage(nullptr);
   }
-  KernelEnd();
+
+  DebugPrint("Kernel setup complete.\n");
 }
 
-namespace {
-
-void KernelPostInit(size_t num_mods, const vfs::Directory *vfs) {
-  // Playground environment.
-  RunTests();
-  terminal::WriteF("#Rows: {}\n", terminal::GetNumRows());
-  terminal::WriteF("#Cols: {}\n", terminal::GetNumCols());
+/**
+ * Playground environment now that the kernel is setup.
+ */
+void KernelLoadPrograms(const vfs::Directory *vfs) {
+  DebugPrint("Checking userspace tasks...\n");
 
   // Run some tasks in userspace.
-  Task t2 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
-  Task t3 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
+  Task t1 = Task::CreateUserTask(UserspaceFunc, (void *)0xfeed);
+  Task t2 = Task::CreateUserTask(UserspaceFunc2, (void *)0xfeed2);
+  t1.Join();
   t2.Join();
+
+  DebugPrint("Created some threads.\n");
+
+  void *usercode, *usercode2;
+  Task t3 = RunUserProgram(*vfs, "user_program.bin", usercode);
+  Task t4 = RunUserProgram(*vfs, "user_program.bin", usercode2);
   t3.Join();
+  t4.Join();
 
-  if (num_mods) {
-    void *usercode, *usercode2;
-    Task t = RunUserProgram(*vfs, "user_program.bin", usercode);
-    Task t2 = RunUserProgram(*vfs, "user_program.bin", usercode2);
-    t.Join();
-    t2.Join();
-
-    kfree(usercode);
-    kfree(usercode2);
-  } else {
-    terminal::Write(
-        "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "
-        "running on QEMU, then either pass the image file with `-cdrom "
-        "myos.iso`, or pass the ramdisk along with the kernel via `-kernel "
-        "kernel -initrd initrd.vfs`.\n\n");
-  }
+  kfree(usercode);
+  kfree(usercode2);
 }
 
 void KernelEnd() {
@@ -211,3 +180,43 @@ void KernelEnd() {
 }
 
 }  // namespace
+
+extern "C" void kernel_main(const Multiboot *multiboot) {
+  int stack_start;
+  DebugPrint("Hello, kernel World!\n");
+  DebugPrint("Kernel stack start: {}\n", &stack_start);
+
+  size_t num_mods;
+  uint8_t *mod_start, *mod_end;
+  KernelSetup(multiboot, &num_mods, &mod_start, &mod_end);
+
+  //-------------------------------------------------------------------------
+  // After this point, we can load user programs or do whatever in kernel
+  // space.
+  //-------------------------------------------------------------------------
+
+  RunTests();
+
+  DebugPrint("# of multiboot modules: {}\n", num_mods);
+  assert(num_mods <= 1 &&
+         "Expected at most one multiboot module, which is the optional initial "
+         "ramdisk");
+
+  if (num_mods) {
+    DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
+
+    toy::Unique<vfs::Directory> vfs;
+    vfs = vfs::ParseVFS(mod_start, mod_end);
+    kfree(mod_start);
+
+    KernelLoadPrograms(vfs.get());
+  } else {
+    DebugPrint(
+        "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "
+        "running on QEMU, then either pass the image file with `-cdrom "
+        "myos.iso`, or pass the ramdisk along with the kernel via `-kernel "
+        "kernel -initrd initrd.vfs`.\n\n");
+  }
+
+  KernelEnd();
+}

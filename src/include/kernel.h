@@ -7,6 +7,8 @@
  */
 
 #include <kstdint.h>
+#include <print.h>
+#include <serial.h>
 
 #define __STR(s) STR(s)
 #define STR(s) #s
@@ -79,5 +81,13 @@ T NextPowOf2(T x) {
 #else
 #define UNREACHABLE()
 #endif
+
+/**
+ * Printing to serial.
+ */
+template <typename... Rest>
+void DebugPrint(const char *str, Rest... rest) {
+  print::Print(serial::Put, str, rest...);
+}
 
 #endif

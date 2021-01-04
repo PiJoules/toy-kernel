@@ -1,7 +1,6 @@
 #ifndef PRINT_H_
 #define PRINT_H_
 
-#include <kassert.h>
 #include <ktype_traits.h>
 
 /**
@@ -86,7 +85,7 @@ void Print(PutFunc put, const char* data, T1 val, Rest... rest) {
       case '{':
         PrintFormatter(put, val);
         ++data;
-        assert(*data == '}' && "Missing closing '}'");
+        if (*data != '}') __builtin_trap();
         return Print(put, ++data, rest...);
       default:
         put(c);

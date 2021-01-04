@@ -1,3 +1,7 @@
+/**
+ * FIXME: This should be moved into user code and not remain in kernel code.
+ */
+
 #include <Multiboot.h>
 #include <Terminal.h>
 #include <io.h>

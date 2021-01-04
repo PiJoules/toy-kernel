@@ -1,5 +1,5 @@
-#include <Terminal.h>
 #include <kassert.h>
+#include <kernel.h>
 #include <ktask.h>
 #include <syscall.h>
 
@@ -37,7 +37,8 @@ namespace {
 constexpr uint8_t kSyscallInterrupt = 0x80;
 
 uint32_t terminal_write(const char *str) {
-  terminal::Write(str);
+  // terminal::Write(str);
+  DebugPrint(str);
   return 0;
 }
 

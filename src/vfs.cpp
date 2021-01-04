@@ -1,4 +1,3 @@
-#include <Terminal.h>
 #include <kmalloc.h>
 #include <kstring.h>
 #include <ktype_traits.h>
@@ -77,18 +76,18 @@ void Node::DumpImpl(toy::BitVector &last) const {
   if (!last.empty()) {
     for (size_t i = 0; i < last.size() - 1; ++i) {
       if (last.get(i))
-        terminal::Write("   ");
+        DebugPrint("   ");
       else
-        terminal::Write("|  ");
+        DebugPrint("|  ");
     }
 
     if (last.getBack())
-      terminal::Write("`--");
+      DebugPrint("`--");
     else
-      terminal::Write("|--");
+      DebugPrint("|--");
   }
 
-  terminal::WriteF("{}\n", header.name);
+  DebugPrint("{}\n", header.name);
 
   if (header.isFile() || AsDir().files.empty()) return;
 

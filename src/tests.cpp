@@ -1,4 +1,3 @@
-#include <Terminal.h>
 #include <bitvector.h>
 #include <function_traits.h>
 #include <initializer_list.h>

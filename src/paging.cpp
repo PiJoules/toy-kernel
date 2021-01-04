@@ -1,4 +1,3 @@
-#include <Terminal.h>
 #include <isr.h>
 #include <knew.h>
 #include <ktask.h>
@@ -22,21 +21,21 @@ void HandlePageFault(registers_t *regs) {
   int reserved = regs->err_code & 0x8;
   int id = regs->err_code & 0x10;
 
-  terminal::WriteF("Page fault!!! When trying to {} {} \n- IP:{}\n",
-                   rw ? "write to" : "read from", print::Hex(faulting_addr),
-                   print::Hex(regs->eip));
-  terminal::WriteF("- The page was {}\n", present ? "present" : "not present");
+  DebugPrint("Page fault!!! When trying to {} {} \n- IP:{}\n",
+             rw ? "write to" : "read from", print::Hex(faulting_addr),
+             print::Hex(regs->eip));
+  DebugPrint("- The page was {}\n", present ? "present" : "not present");
 
-  if (reserved) terminal::Write("- Reserved bit was set\n");
+  if (reserved) DebugPrint("- Reserved bit was set\n");
 
-  if (id) terminal::Write("- Caused by an instruction fetch\n");
+  if (id) DebugPrint("- Caused by an instruction fetch\n");
 
-  terminal::WriteF("- CPU was in {}\n", us ? "user-mode" : "supervisor mode");
+  DebugPrint("- CPU was in {}\n", us ? "user-mode" : "supervisor mode");
 
   if (GetCurrentTask() == GetMainKernelTask()) {
-    terminal::Write("- Occurred in main kernel task.\n");
+    DebugPrint("- Occurred in main kernel task.\n");
   } else {
-    terminal::WriteF("- Occurred in task: {}.\n", GetCurrentTask()->getID());
+    DebugPrint("- Occurred in task: {}.\n", GetCurrentTask()->getID());
   }
 
   DumpRegisters(regs);
@@ -68,9 +67,7 @@ PageDirRegionBitmap PageDirRegion;
 
 }  // namespace
 
-void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
-                      uint32_t framebuffer_addr) {
-  terminal::Write("Initializing paging...\n");
+void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K) {
   RegisterInterruptHandler(kPageFaultInterrupt, HandlePageFault);
   uint32_t total_mem = high_mem_KB * 1024;
 
@@ -79,7 +76,7 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
   // 32 4MB pages = 128 MB of total memory, which is the default memory limit
   // for QEMU.
   uint32_t num_4M_pages = total_mem / kPageSize4M + 1;
-  terminal::WriteF("Total 4 MB page count: {}\n", num_4M_pages);
+  DebugPrint("Total 4 MB page count: {}\n", num_4M_pages);
 
   // FIXME: This just happens to be the QEMU default. We should set a clear
   // value on how much memory we would like.
@@ -103,10 +100,6 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
                         reinterpret_cast<void *>(PAGE_DIRECTORY_REGION_START),
                         flags);
 
-  // Also need to map GFX memory here.
-  if (framebuffer_addr)
-    PhysicalBitmap.setPageFrameFree(PageIndex4M(framebuffer_addr));
-
   SwitchPageDirectory(KernelPageDir);
 
   // Enable paging.
@@ -120,19 +113,6 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K,
       or %0, %%eax \n \
       mov %%eax, %%cr0" ::"i"(PAGING_FLAG),
       "i"(PSE_FLAG));
-
-  // After paging is enabled, it's possible that the physical address we wrote
-  // to in virtual mode may not have a page allocated for it. Continuing to
-  // write to it could result in a page fault! We should immediately re-assign
-  // the framebuffer to some allocated virtual memory and write to that instead.
-  // FIXME: May also need to remap the text buffer (0xb8000) if not using the
-  // first 4MB.
-  if (terminal::UsingGraphics())
-    terminal::UseGraphicsTerminalVirtual();
-  else
-    terminal::UseTextTerminalVirtual();
-
-  terminal::Write("Paging initialized!\n");
 }
 
 PageDirectory &GetKernelPageDirectory() { return KernelPageDir; }

@@ -76,6 +76,8 @@ $ qemu-system-i386 -cdrom myos.iso
 - `-serial file:serial.log`
   - Writes to COM1 will be written to `serial.log`. This is not needed when
     `-nographic` is used.
+- `-no-reboot`
+  - Do not reboot on a kernel crash.
 
 ### TODO: Real hardware
 
