@@ -7,8 +7,11 @@ SECTIONS
 
   .text ALIGN(4):
   {
-    start_user_program.o(.text)     /* include the .text section of start.o */
-    *(.text)           /* include all other .text sections */
+    /* Ensure the user program entry comes first. */
+    *(.user_program_entry)
+
+    /* include all other .text sections */
+    *(.text)
   }
 
   .data ALIGN(4):

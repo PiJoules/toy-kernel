@@ -18,8 +18,6 @@ using print::Hex;
 
 extern "C" uint8_t _start, _end;
 
-void RunTests();
-
 namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
@@ -28,7 +26,7 @@ const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
 Task RunFlatUserBinary(const vfs::Directory &vfs, const toy::String &filename,
                        void *arg = nullptr) {
   const vfs::Node *program = vfs.getFile(filename);
-  assert(program && "Could not find user_program.bin");
+  assert(program && "Could not find binary");
 
   const vfs::File &file = program->AsFile();
   size_t size = file.contents.size();
@@ -63,12 +61,6 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
     DebugPrint("module start: {}\n", Hex(mod->mod_start));
     DebugPrint("module end: {}\n", Hex(mod->mod_end));
     DebugPrint("module size: {}\n", mod->getModuleSize());
-
-    size_t size = mod->getModuleSize();
-    char data[size + 1];
-    data[size] = '\0';
-    memcpy(data, mod->getModuleStart(), size);
-    DebugPrint("module contents: {}\n", data);
   }
   DebugPrint("framebuffer type: {}\n", Hex(multiboot->framebuffer_type));
   DebugPrint("physical framebuffer address: {}\n",
@@ -128,16 +120,25 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
  * Playground environment now that the kernel is setup.
  */
 void KernelLoadPrograms(const vfs::Directory *vfs) {
+  // FIXME: test_user_program.bin is a user binary that is run for checking that
+  // user programs have their own address spaces. Ideally, this would be
+  // contained in its own test rather than hardcoding it here.
   DebugPrint("Checking userspace tasks...\n");
 
-  Task t1 = RunFlatUserBinary(*vfs, "user_program.bin");
+  Task t1 = RunFlatUserBinary(*vfs, "test_user_program.bin");
   DebugPrint("Launched task {}\n", t1.getID());
-  Task t2 = RunFlatUserBinary(*vfs, "user_program.bin");
+  Task t2 = RunFlatUserBinary(*vfs, "test_user_program.bin");
   DebugPrint("Launched task {}\n", t2.getID());
   t1.Join();
   t2.Join();
   assert(t1.getPageDirectory().get() != t2.getPageDirectory().get() &&
          "Expected user tasks to have unique address spaces.");
+
+  if (vfs->hasFile("userboot")) {
+    DebugPrint("Launching userboot...\n");
+    Task userboot = RunFlatUserBinary(*vfs, "userboot");
+    userboot.Join();
+  }
 }
 
 void KernelEnd() {
@@ -172,6 +173,8 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   // space.
   //-------------------------------------------------------------------------
 
+  // FIXME: Find a way to run kernel-specific tests elsewhere instead of at
+  // startup. Perhaps the tests should only be included for debug builds?
   RunTests();
 
   DebugPrint("# of multiboot modules: {}\n", num_mods);
