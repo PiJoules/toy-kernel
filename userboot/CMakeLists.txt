@@ -8,7 +8,19 @@
 #
 # CMake code in here should not be dependent on any cmake in the parent directory.
 
+cmake_minimum_required(VERSION 3.15.4)
+project(toy-kernel-userboot)
+enable_language(CXX ASM)
+
 set(INITRD initrd.vfs)
+
+# If INITRD_DST_DIR is defined either in a parent project or during the cmake
+# invocation, we will move initrd here once it's finished building.
+if(DEFINED INITRD_DST_DIR)
+  set(SHOULD_COPY_INITRD true)
+else()
+  set(SHOULD_COPY_INITRD false)
+endif()
 
 set(USER_COMPILE_FLAGS
   -target i386
@@ -75,7 +87,7 @@ add_custom_target(${INITRD}
   COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
   COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f initrd/ ; done"
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
-  COMMAND cp initrd.vfs ${PROJECT_BINARY_DIR}/
+  COMMAND /bin/sh -c "if ${SHOULD_COPY_INITRD}; then cp initrd.vfs ${INITRD_DST_DIR}/; fi"
 
   COMMENT "Create the initial ramdisk with '${USER_PROGRAMS}'"
   DEPENDS ${USER_PROGRAMS_LIST}

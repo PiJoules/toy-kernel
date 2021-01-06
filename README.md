@@ -42,9 +42,9 @@ $ ninja myos.iso
 # automation.
 $ qemu-system-i386 -cdrom myos.iso -nographic
 OR
-$ qemu-system-i386 -kernel kernel -initrd initrd.vfs -nographic
+$ qemu-system-i386 -kernel kernel/kernel -initrd initrd.vfs -nographic
 OR
-$ qemu-system-i386 -kernel kernel -nographic
+$ qemu-system-i386 -kernel kernel/kernel -nographic
 ```
 
 Exit QEMU with `Alt+2, type quit, ENTER`.
