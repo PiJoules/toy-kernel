@@ -1,5 +1,5 @@
-#ifndef KSTDDEF_H_
-#define KSTDDEF_H_
+#ifndef STDDEF_H_
+#define STDDEF_H_
 
 #define offsetof(Type, Member) __builtin_offsetof(Type, Member)
 

@@ -3,10 +3,10 @@
 #include <kassert.h>
 #include <kernel.h>
 #include <kmalloc.h>
-#include <kstring.h>
 #include <ktask.h>
 #include <paging.h>
 #include <panic.h>
+#include <string.h>
 #include <syscall.h>
 
 namespace {

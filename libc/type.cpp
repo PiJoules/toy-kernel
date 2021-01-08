@@ -1,4 +1,4 @@
-#include <ktype.h>
+#include <type.h>
 
 bool isalpha(int ch) { return islower(ch) || isupper(ch); }
 

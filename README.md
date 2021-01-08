@@ -93,7 +93,7 @@ $ python3 initrd.py test
 
 ```sh
 # Run from root directory
-$ clang-format -style=file -i  kernel/*.cpp kernel/include/*.h userboot/*.cpp
+$ clang-format -style=file -i  kernel/*.cpp kernel/include/*.h userboot/*.cpp libc/*.cpp libc/include/*.h
 $ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
 ```
 
@@ -108,6 +108,17 @@ $ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
 ```sh
 $ objdump -b binary user_program.bin -D -m i386 |& less
 ```
+
+## Repo Structure
+
+Everything in each of the top-level project directories should effectively be
+independent of each other (the kernel should be able to be built independently
+of userboot, and userboot should not be hardcoded to depend on *this* libc).
+
+Subprojects in each subdirectory can depend on each other, but should be easily
+substituable for similar tools (userboot can be substituted for any other
+program that the kernel can run on startup, and userboot can use any other libc
+that can run on this kernel).
 
 ## Resources
 

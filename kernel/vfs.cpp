@@ -1,6 +1,6 @@
 #include <kmalloc.h>
-#include <kstring.h>
 #include <ktype_traits.h>
+#include <string.h>
 #include <vfs.h>
 
 namespace vfs {

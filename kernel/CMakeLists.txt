@@ -1,32 +1,49 @@
+# This contains the build rules for making the kernel.
+
+cmake_minimum_required(VERSION 3.15.4)
+project(toy-kernel-kernel)
+enable_language(CXX ASM)
+
 add_library(asm_objs STATIC boot.s gdt.s interrupt.s task.s)
 target_compile_options(asm_objs
-  PRIVATE -target i686)
+  PRIVATE -target i386)
 
 add_library(cpp_objs STATIC
-  kernel.cpp DescriptorTables.cpp kstring.cpp isr.cpp Timer.cpp
-  paging.cpp panic.cpp assert.cpp tests.cpp kmalloc.cpp task.cpp
-  syscall.cpp keyboard.cpp ktype.cpp kstdlib.cpp builtins.cpp kctype.cpp
+  kernel.cpp DescriptorTables.cpp
+  isr.cpp Timer.cpp
+  paging.cpp panic.cpp kassert.cpp tests.cpp kmalloc.cpp task.cpp
+  syscall.cpp keyboard.cpp
+  kstdlib.cpp
+  builtins.cpp
   serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp print.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
-target_compile_options(cpp_objs
-  PRIVATE -target i386
-  PRIVATE -ffreestanding
-  PRIVATE -Wall
-  PRIVATE -Wextra
-  PRIVATE -Werror
-  PRIVATE -Wconversion
-  PRIVATE -Wno-sign-compare
-  PRIVATE -Wno-sign-conversion
-  PRIVATE -fno-exceptions
-  PRIVATE -fno-rtti
-  PRIVATE -ftrivial-auto-var-init=pattern
-  PRIVATE -std=c++17
-  PRIVATE -UNDEBUG  # We keep all assert()s
+set(KERNEL_COMPILE_FLAGS
+  -target i386
+  -ffreestanding
+  -Wall
+  -Wextra
+  -Werror
+  -Wconversion
+  -Wno-sign-compare
+  -Wno-sign-conversion
+  -fno-exceptions
+  -fno-rtti
+  -ftrivial-auto-var-init=pattern
+  -std=c++17
+  -UNDEBUG  # We keep all assert()s
 
   # This is needed for stack tracing.
-  PRIVATE -fno-omit-frame-pointer
+  -fno-omit-frame-pointer
 
-  PRIVATE -nostdlib)
+  -nostdlib)
+
+# FIXME: We should not assume the directory is adjascent to this one.
+set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
+set(BUILD_KERNEL_LIBC 1)
+add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_libc_build)
+
+target_compile_options(cpp_objs PRIVATE ${KERNEL_COMPILE_FLAGS})
+target_include_directories(cpp_objs PRIVATE ${LIBC_PROJECT_DIR}/include/)
 
 # TODO: Move this to a user program.
 ## The object file provided by this will provided the symbols needed for fonts
@@ -44,13 +61,22 @@ target_compile_options(cpp_objs
 #  COMMENT "Create font object file"
 #  VERBATIM)
 
-set(LINK_FLAGS
-  -m elf_i386
-  -T ${CMAKE_SOURCE_DIR}/kernel/link.ld)
-
 add_custom_target(${KERNEL} ALL
-  COMMAND ${CMAKE_LINKER} ${LINK_FLAGS} -o ${KERNEL} --start-group $<TARGET_FILE:asm_objs> $<TARGET_FILE:cpp_objs> --end-group
+  COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${CMAKE_SOURCE_DIR}/kernel/link.ld
+          -o ${KERNEL}
+          --start-group
+
+          --whole-archive
+          $<TARGET_FILE:asm_objs>
+          $<TARGET_FILE:cpp_objs>
+
+          --no-whole-archive
+          $<TARGET_FILE:kernel_libc>
+
+          --end-group
+
   COMMAND grub-file --is-x86-multiboot ${KERNEL}
+
   COMMENT "Link ${KERNEL}"
-  DEPENDS asm_objs cpp_objs
+  DEPENDS asm_objs cpp_objs kernel_libc
   VERBATIM)

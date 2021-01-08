@@ -1,7 +1,7 @@
-#include <stdio.h>
+#include <_syscalls.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <_syscalls.h>
+#include <stdio.h>
 
 bool __use_debug_log = false;
 
@@ -62,7 +62,8 @@ void PrintDecimal(int32_t val) {
 // FIXME: Have a more graceful way of indicating a crash rather than just using
 // __builtin_trap().
 extern "C" int printf(const char *fmt, ...) {
-  int ret;
+  // FIXME: Actually record the number of characters written.
+  int num_written = 0;
   va_list ap;
   va_start(ap, fmt);
 
@@ -73,7 +74,7 @@ extern "C" int printf(const char *fmt, ...) {
         c = *(fmt++);
         switch (c) {
           case 'c': {
-            char other_char = va_arg(ap, int);
+            char other_char = static_cast<char>(va_arg(ap, int));
             __system_put(other_char);
             break;
           }
@@ -100,9 +101,7 @@ extern "C" int printf(const char *fmt, ...) {
   }
 
   va_end(ap);
-  return ret;
+  return num_written;
 }
 
-extern "C" void put(char c) {
-  __system_put(c);
-}
+extern "C" void put(char c) { __system_put(c); }

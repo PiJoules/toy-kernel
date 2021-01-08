@@ -1,5 +1,5 @@
-#ifndef KCTYPE_H_
-#define KCTYPE_H_
+#ifndef CTYPE_H_
+#define CTYPE_H_
 
 extern "C" {
 

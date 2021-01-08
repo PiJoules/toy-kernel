@@ -6,8 +6,8 @@
 #include <isr.h>
 #include <kassert.h>
 #include <keyboard.h>
-#include <ktype.h>
 #include <panic.h>
+#include <type.h>
 
 namespace {
 

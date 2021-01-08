@@ -2,7 +2,7 @@
 #define BIT_ARRAY_H_
 
 #include <kstdint.h>
-#include <kstring.h>
+#include <string.h>
 
 namespace toy {
 

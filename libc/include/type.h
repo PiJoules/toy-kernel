@@ -1,5 +1,5 @@
-#ifndef KTYPE_H_
-#define KTYPE_H_
+#ifndef TYPE_H_
+#define TYPE_H_
 
 bool isalpha(int ch);
 bool isdigit(int ch);

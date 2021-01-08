@@ -4,8 +4,10 @@
 #include <bitvector.h>
 #include <kassert.h>
 #include <kstdint.h>
+#include <kstring.h>
 #include <string.h>
 #include <unique.h>
+#include <vector.h>
 
 namespace vfs {
 

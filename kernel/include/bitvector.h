@@ -3,7 +3,7 @@
 
 #include <kassert.h>
 #include <kmalloc.h>
-#include <kstring.h>
+#include <string.h>
 
 namespace toy {
 

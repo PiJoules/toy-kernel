@@ -7,6 +7,12 @@
 # This is all done through QEMU without graphics and communicated over serial.
 #
 # CMake code in here should not be dependent on any cmake in the parent directory.
+#
+# CMake Arguments:
+#
+# - INITRD_DST_DIR (String):
+#     If INITRD_DST_DIR is defined either in a parent project or during the cmake
+#     invocation, we will move initrd here once it's finished building.
 
 cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel-userboot)
@@ -15,8 +21,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(INITRD initrd.vfs)
 
-# If INITRD_DST_DIR is defined either in a parent project or during the cmake
-# invocation, we will move initrd here once it's finished building.
 if(DEFINED INITRD_DST_DIR)
   set(SHOULD_COPY_INITRD true)
 else()
@@ -42,7 +46,12 @@ function(add_to_initrd binary)
   message(STATUS "Add ${binary} to USER_PROGRAMS (${USER_PROGRAMS})")
 endfunction()
 
-add_subdirectory(libc)
+# Attempt to find a target library called "c" that represents a static archive
+# libc implementation.
+# FIXME: We should not assume the directory is adjascent to this one.
+set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
+set(BUILD_USER_LIBC 1)
+add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libc_build)
 
 add_library(bootstrap_lib STATIC start_user_program.s)
 target_compile_options(bootstrap_lib
@@ -54,7 +63,7 @@ function(make_flat_user_binary name)
   add_library(${libname} STATIC "${ARGN}")
   target_compile_options(${libname}
     PRIVATE ${USER_COMPILE_FLAGS})
-  target_include_directories(${libname} PRIVATE libc/include/)
+  target_include_directories(${libname} PRIVATE ${LIBC_PROJECT_DIR}/include/)
 
   add_custom_target(${name} ALL
     COMMAND ${CMAKE_LINKER} -T ${CMAKE_CURRENT_SOURCE_DIR}/user_link.ld -m elf_i386
@@ -66,12 +75,12 @@ function(make_flat_user_binary name)
             $<TARGET_FILE:bootstrap_lib>
 
             --no-whole-archive
-            $<TARGET_FILE:c>
+            $<TARGET_FILE:user_libc>
 
             --end-group
 
     COMMENT "Compiling ${name}"
-    DEPENDS bootstrap_lib ${libname} c
+    DEPENDS bootstrap_lib ${libname} user_libc
     VERBATIM)
 endfunction()
 
