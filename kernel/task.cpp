@@ -83,21 +83,13 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
     *(--stack_bottom) =
         UINT32_C(kUserCodeSegment);  // User code segment | ring 3
     getRegs().cs = kUserCodeSegment;
+
+    *(--stack_bottom) = USER_START;
   } else {
     *(--stack_bottom) = UINT32_C(kKernelCodeSegment);  // Kernel code segment
     getRegs().cs = kKernelCodeSegment;
-  }
 
-  // FIXME: This is a hack for detecting if the function we are calling is in
-  // kernel or user space.
-  {
-    if (user &&
-        (KERN_HEAP_BEGIN <= (uint32_t)func && (uint32_t)func < KERN_HEAP_END)) {
-      *(--stack_bottom) = USER_START;
-    } else {
-      // This is kernel mode or kernel code.
-      *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
-    }
+    *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
   }
 
   getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);

@@ -148,9 +148,7 @@ void KernelEnd() {
   DebugPrint("Kernel memory still in use: {} B\n", GetKernelHeapUsed());
   assert(GetKernelHeapUsed() == 0 && "Kernel heap was not cleared!");
 
-  DebugPrint("Reached end of kernel.");
-  uint8_t scancode = Read8(0x60);
-  DebugPrint("last scancode: {}\n", scancode);
+  DebugPrint("Reached end of kernel.\n");
   while (1) {
     char c = serial::Read();
     serial::Put(c);

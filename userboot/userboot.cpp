@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 extern bool __use_debug_log;
 
@@ -39,13 +40,31 @@ void DebugRead(char *buffer) {
 
 constexpr size_t kCmdBufferSize = 1024;
 
+static void DumpCommands() {
+  printf(
+      "help - Dump commands.\n"
+      "shutdown - Exit userboot.\n");
+}
+
 extern "C" int main() {
   __use_debug_log = true;
+
+  printf("\nWelcome! Type \"help\" for commands\n");
 
   char buffer[kCmdBufferSize];
   while (1) {
     printf("shell> ");
     DebugRead(buffer);
-    printf("%s\n", buffer);
+
+    if (strcmp(buffer, "help") == 0) {
+      DumpCommands();
+    } else if (strcmp(buffer, "shutdown") == 0) {
+      printf("Shutting down...\n");
+      break;
+    } else {
+      printf("Unknown command: %s\n", buffer);
+    }
   }
+
+  return 0;
 }

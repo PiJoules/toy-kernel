@@ -1,6 +1,10 @@
 #ifndef VFS_H_
 #define VFS_H_
 
+// FIXME: We should eventually move this into a separate directory so that both
+// the kernel and user applications can share this for reading off the initial
+// ramdisk.
+
 #include <bitvector.h>
 #include <kassert.h>
 #include <kstdint.h>

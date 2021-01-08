@@ -29,15 +29,14 @@
     return a;                                                         \
   }
 
-DEF_SYSCALL1(terminal_write, 0, const char *)
+DEF_SYSCALL1(debug_write, 0, const char *)
 DEF_SYSCALL0(exit_user_task, 1)
 
 namespace {
 
 constexpr uint8_t kSyscallInterrupt = 0x80;
 
-uint32_t terminal_write(const char *str) {
-  // terminal::Write(str);
+uint32_t debug_write(const char *str) {
   DebugPrint(str);
   return 0;
 }
@@ -48,7 +47,7 @@ uint32_t exit_user_task() {
 }
 
 void *kSyscalls[] = {
-    reinterpret_cast<void *>(terminal_write),
+    reinterpret_cast<void *>(debug_write),
     reinterpret_cast<void *>(exit_user_task),
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
