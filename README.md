@@ -93,7 +93,7 @@ $ python3 initrd.py test
 
 ```sh
 # Run from root directory
-$ clang-format -style=file -i  src/*.cpp src/include/*.h usersdk/*.c
+$ clang-format -style=file -i  kernel/*.cpp kernel/include/*.h userboot/*.cpp
 $ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
 ```
 

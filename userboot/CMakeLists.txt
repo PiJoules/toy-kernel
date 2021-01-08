@@ -11,6 +11,7 @@
 cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel-userboot)
 enable_language(CXX ASM)
+set(CMAKE_CXX_STANDARD 17)
 
 set(INITRD initrd.vfs)
 
@@ -41,6 +42,8 @@ function(add_to_initrd binary)
   message(STATUS "Add ${binary} to USER_PROGRAMS (${USER_PROGRAMS})")
 endfunction()
 
+add_subdirectory(libc)
+
 add_library(bootstrap_lib STATIC start_user_program.s)
 target_compile_options(bootstrap_lib
   PRIVATE -target i386)
@@ -51,18 +54,24 @@ function(make_flat_user_binary name)
   add_library(${libname} STATIC "${ARGN}")
   target_compile_options(${libname}
     PRIVATE ${USER_COMPILE_FLAGS})
+  target_include_directories(${libname} PRIVATE libc/include/)
 
   add_custom_target(${name} ALL
     COMMAND ${CMAKE_LINKER} -T ${CMAKE_CURRENT_SOURCE_DIR}/user_link.ld -m elf_i386
             -o ${name}
-            --whole-archive
             --start-group
+
+            --whole-archive
             $<TARGET_FILE:${libname}>
             $<TARGET_FILE:bootstrap_lib>
+
+            --no-whole-archive
+            $<TARGET_FILE:c>
+
             --end-group
 
     COMMENT "Compiling ${name}"
-    DEPENDS bootstrap_lib ${libname}
+    DEPENDS bootstrap_lib ${libname} c
     VERBATIM)
 endfunction()
 
