@@ -15,4 +15,10 @@ uint32_t DebugPut(char c) {
   return DebugPrint(str);
 }
 
+char DebugRead() {
+  uint32_t a;
+  asm volatile("int " INTERRUPT : "=a"(a) : "0"(2));
+  return a;
+}
+
 }  // namespace sys

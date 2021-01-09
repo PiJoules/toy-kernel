@@ -2,10 +2,13 @@
 #include <io.h>
 #include <kstdint.h>
 #include <kstring.h>
+#include <stddef.h>
 
 // Initialises the GDT and IDT, and defines the default ISR and IRQ handler.
 // Based on code from Bran's kernel development tutorials.
 // Rewritten for JamesM's kernel development tutorials.
+
+constexpr uint8_t kDPLUser = 0x60;
 
 constexpr size_t kNumGDTEntries = 6;
 gdt_entry_t gdt_entries[kNumGDTEntries];
@@ -131,13 +134,21 @@ void GDTSetGate(int32_t num, uint32_t base, uint32_t limit, uint8_t access,
 void WriteTSS(int32_t num, uint16_t ss0, uint32_t esp0) {
   // Firstly, let's compute the base and limit of our entry into the GDT.
   uint32_t base = reinterpret_cast<uint32_t>(&tss_entry);
-  uint32_t limit = base + sizeof(tss_entry);
+  uint32_t limit = sizeof(tss_entry);
 
   // Ensure the descriptor is initially zero.
+  // Note that this sets the I/O privilege level in `eflags` to zero also,
+  // preventing I/O instructions from being used outside of ring 0.
   memset(&tss_entry, 0, sizeof(tss_entry));
 
   tss_entry.ss0 = ss0;    // Set the kernel stack segment.
   tss_entry.esp0 = esp0;  // Set the kernel stack pointer.
+
+  // Disable usage of the I/O privilege bitmap which can allow some ports to be
+  // accessible outside of ring 0. We do this by setting the I/O map base to be
+  // the same as the TSS limit.
+  // https://cs.nyu.edu/~mwalfish/classes/15fa/ref/i386/s08_03.htm
+  tss_entry.iomap_base = sizeof(tss_entry);
 
   // Here we set the cs, ss, ds, es, fs and gs entries in the TSS. These specify
   // what segments should be loaded when the processor switches to kernel mode.
@@ -175,10 +186,7 @@ void IDTSetGate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags) {
 
   idt_entries[num].sel = sel;
   idt_entries[num].always0 = 0;
-  // We must uncomment the OR below when we get to using user-mode.
-  // It sets the interrupt gate's privilege level to 3.
-  idt_entries[num].flags = flags | 0x60;
-  // idt_entries[num].flags = flags /* | 0x60 */;
+  idt_entries[num].flags = flags;
 }
 
 void InitIDT() {
@@ -249,7 +257,9 @@ void InitIDT() {
   IDTSetGate(45, reinterpret_cast<uint32_t>(irq13), 0x08, 0x8E);
   IDTSetGate(46, reinterpret_cast<uint32_t>(irq14), 0x08, 0x8E);
   IDTSetGate(47, reinterpret_cast<uint32_t>(irq15), 0x08, 0x8E);
-  IDTSetGate(128, reinterpret_cast<uint32_t>(isr128), 0x08, 0x8E);
+
+  // Set the interrupt gate privilege for 0x80 to 3 so usermode can access it.
+  IDTSetGate(128, reinterpret_cast<uint32_t>(isr128), 0x08, 0x8E | kDPLUser);
 
   IDTFlush(reinterpret_cast<uint32_t>(&idt_ptr));
 }

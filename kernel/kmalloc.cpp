@@ -1,8 +1,8 @@
 #include <kassert.h>
 #include <kmalloc.h>
+#include <kstring.h>
 #include <paging.h>
 #include <panic.h>
-#include <string.h>
 
 namespace {
 

@@ -84,9 +84,15 @@ function(make_flat_user_binary name)
     VERBATIM)
 endfunction()
 
+# Test for checking that user programs have different address spaces.
 make_flat_user_binary(test_user_program.bin test_user_program.c)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_program.bin")
 
+# Test for checking that we don't have direct access to I/O instructions in usermode.
+make_flat_user_binary(test_user_io_privilege test_user_io_privilege.cpp)
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
+
+# Userboot containing a basic shell.
 make_flat_user_binary(userboot userboot.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 

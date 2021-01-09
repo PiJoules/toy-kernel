@@ -116,8 +116,17 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
   DebugPrint("Kernel setup complete.\n");
 }
 
+static void CheckGPFTriggerred(X86Registers *regs) {
+  assert(regs->int_no == kGeneralProtectionFault);
+  exit_this_task();
+}
+
 /**
  * Playground environment now that the kernel is setup.
+ *
+ * FIXME: Ideally most of this would be moved into userspace and we should be
+ * able to call them from there. Running user tests and loading the vfs should
+ * be handled from userspace.
  */
 void KernelLoadPrograms(const vfs::Directory *vfs) {
   // FIXME: test_user_program.bin is a user binary that is run for checking that
@@ -133,6 +142,19 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
   t2.Join();
   assert(t1.getPageDirectory().get() != t2.getPageDirectory().get() &&
          "Expected user tasks to have unique address spaces.");
+
+  {
+    // Test that I/O instructions are not triggerred in userspace.
+    auto old_handler = GetInterruptHandler(kGeneralProtectionFault);
+    RegisterInterruptHandler(kGeneralProtectionFault, CheckGPFTriggerred);
+    Task io_priv_test = RunFlatUserBinary(*vfs, "test_user_io_privilege");
+    io_priv_test.Join();
+
+    DebugPrint(
+        "General protection fault is triggerred on an I/O instruction in "
+        "userspace!\n");
+    RegisterInterruptHandler(kGeneralProtectionFault, old_handler);
+  }
 
   if (vfs->hasFile("userboot")) {
     DebugPrint("Launching userboot...\n");

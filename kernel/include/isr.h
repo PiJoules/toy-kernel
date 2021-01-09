@@ -42,4 +42,7 @@ void UnregisterInterruptHandler(uint8_t interrupt);
 isr_t GetInterruptHandler(uint8_t interrupt);
 void DumpRegisters(const X86Registers *regs);
 
+constexpr uint8_t kGeneralProtectionFault = 13;
+constexpr uint8_t kPageFaultInterrupt = 14;
+
 #endif

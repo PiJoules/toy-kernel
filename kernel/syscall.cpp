@@ -31,6 +31,7 @@
 
 DEF_SYSCALL1(debug_write, 0, const char *)
 DEF_SYSCALL0(exit_user_task, 1)
+DEF_SYSCALL0(debug_read, 2)
 
 namespace {
 
@@ -46,9 +47,12 @@ uint32_t exit_user_task() {
   return 0;
 }
 
+uint8_t debug_read() { return serial::Read(); }
+
 void *kSyscalls[] = {
     reinterpret_cast<void *>(debug_write),
     reinterpret_cast<void *>(exit_user_task),
+    reinterpret_cast<void *>(debug_read),
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 

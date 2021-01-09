@@ -83,6 +83,11 @@ extern "C" int printf(const char *fmt, ...) {
             PrintDecimal(i);
             break;
           }
+          case 'u': {
+            unsigned i = va_arg(ap, unsigned);
+            PrintDecimal(i);
+            break;
+          }
           case 's': {
             char *s = va_arg(ap, char *);
             __system_print(s);

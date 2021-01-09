@@ -36,8 +36,6 @@
 #define PG_USER 0x00000004      // page can be accessed by user (et. all)
 #define PG_4MB 0x00000080       // pages are 4MB
 
-constexpr uint8_t kPageFaultInterrupt = 14;
-
 constexpr uint32_t kPageMask4M = ~UINT32_C(0x3FFFFF);
 constexpr uint32_t kPageSize4M = 0x00400000;
 constexpr uint32_t kRamAs4MPages = 0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB

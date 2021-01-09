@@ -7,6 +7,7 @@
 #define DECL_SYSCALL0(func) RET_TYPE syscall_##func();
 #define DECL_SYSCALL1(func, P1) RET_TYPE syscall_##func(P1 p1);
 
+DECL_SYSCALL0(debug_read)
 DECL_SYSCALL1(debug_write, const char *)
 DECL_SYSCALL0(exit_user_task)
 

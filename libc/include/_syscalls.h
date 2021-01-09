@@ -5,6 +5,7 @@
 
 namespace sys {
 
+char DebugRead();
 uint32_t DebugPrint(const char *str);
 uint32_t DebugPut(char c);
 
