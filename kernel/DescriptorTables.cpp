@@ -1,8 +1,8 @@
 #include <DescriptorTables.h>
 #include <io.h>
-#include <kstdint.h>
-#include <kstring.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 // Initialises the GDT and IDT, and defines the default ISR and IRQ handler.
 // Based on code from Bran's kernel development tutorials.

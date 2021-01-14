@@ -1,6 +1,6 @@
 #include <kmalloc.h>
-#include <ktype_traits.h>
 #include <string.h>
+#include <type_traits.h>
 #include <vfs.h>
 
 namespace vfs {
@@ -15,7 +15,7 @@ T ReadAndAdvance(uint8_t *&ptr) {
   return x;
 }
 
-toy::Unique<Node> ParseOneNode(uint8_t *&bytes) {
+std::unique_ptr<Node> ParseOneNode(uint8_t *&bytes) {
   uint32_t fileid = ReadAndAdvance<uint32_t>(bytes);
   uint32_t flags = ReadAndAdvance<uint32_t>(bytes);
   bool isfile = flags & 1;
@@ -28,11 +28,11 @@ toy::Unique<Node> ParseOneNode(uint8_t *&bytes) {
   size_t size = ReadAndAdvance<uint32_t>(bytes);
 
   if (isfile) {
-    return toy::Unique<Node>(new File(fileid, name, size, bytes));
+    return std::unique_ptr<Node>(new File(fileid, name, size, bytes));
   } else {
-    toy::Vector<toy::Unique<Node>> nodes;
+    std::vector<std::unique_ptr<Node>> nodes;
     for (size_t i = 0; i < size; ++i) { nodes.push_back(ParseOneNode(bytes)); }
-    return toy::Unique<Node>(new Directory(fileid, name, nodes));
+    return std::unique_ptr<Node>(new Directory(fileid, name, nodes));
   }
 }
 
@@ -41,7 +41,7 @@ toy::Unique<Node> ParseOneNode(uint8_t *&bytes) {
 Header::Header(uint32_t id, bool isfile, const char name[kFilenameSize])
     : id(id), flags(0) {
   flags |= static_cast<uint32_t>(isfile);
-  memcpy(this->name, name, toy::min(kFilenameSize, strlen(name)));
+  memcpy(this->name, name, std::min(kFilenameSize, strlen(name)));
 }
 
 Node::Node(uint32_t id, bool isfile, const char name[kFilenameSize])
@@ -109,22 +109,22 @@ File::File(uint32_t id, const char name[kFilenameSize], size_t size,
 }
 
 Directory::Directory(uint32_t id, const char name[kFilenameSize],
-                     toy::Vector<toy::Unique<Node>> &files)
-    : Node(id, /*isfile=*/false, name), files(toy::move(files)) {}
+                     std::vector<std::unique_ptr<Node>> &files)
+    : Node(id, /*isfile=*/false, name), files(std::move(files)) {}
 
-toy::Unique<Directory> ParseVFS(uint8_t *bytes_begin, uint8_t *bytes_end) {
-  toy::Vector<toy::Unique<Node>> nodes;
+std::unique_ptr<Directory> ParseVFS(uint8_t *bytes_begin, uint8_t *bytes_end) {
+  std::vector<std::unique_ptr<Node>> nodes;
   while (bytes_begin < bytes_end) {
     nodes.push_back(ParseOneNode(bytes_begin));
   }
   assert(bytes_begin == bytes_end);
-  return toy::MakeUnique<Directory>(/*id=*/-1, "root", nodes);
+  return std::make_unique<Directory>(/*id=*/-1, "root", nodes);
 }
 
-bool Directory::hasFile(const toy::String &name) const { return getFile(name); }
+bool Directory::hasFile(const std::string &name) const { return getFile(name); }
 
-const Node *Directory::getFile(const toy::String &name) const {
-  for (const toy::Unique<Node> &node : files) {
+const Node *Directory::getFile(const std::string &name) const {
+  for (const std::unique_ptr<Node> &node : files) {
     if (name == node->header.name) return node.get();
   }
   return nullptr;

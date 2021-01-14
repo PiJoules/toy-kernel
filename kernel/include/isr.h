@@ -1,7 +1,7 @@
 #ifndef ISR_H_
 #define ISR_H_
 
-#include <kstdint.h>
+#include <stdint.h>
 
 struct X86Registers {
   uint32_t ds;                                      // Data segment selector

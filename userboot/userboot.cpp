@@ -5,6 +5,8 @@
 
 extern bool __use_debug_log;
 
+namespace {
+
 constexpr char CR = 13;  // Carriage return
 
 // Store typed characters into a buffer while also saving the command until the
@@ -25,14 +27,18 @@ void DebugRead(char *buffer) {
 
 constexpr size_t kCmdBufferSize = 1024;
 
-static void DumpCommands() {
+void DumpCommands() {
   printf(
       "help - Dump commands.\n"
       "shutdown - Exit userboot.\n");
 }
 
-extern "C" int main() {
+}  // namespace
+
+extern "C" int __user_main(void *env) {
   __use_debug_log = true;
+
+  printf("env: %d\n", env);
 
   printf("\nWelcome! Type \"help\" for commands\n");
 

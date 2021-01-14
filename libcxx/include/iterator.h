@@ -1,11 +1,13 @@
-#ifndef POINTER_ITERATOR_H_
-#define POINTER_ITERATOR_H_
+#ifndef ITERATOR_H_
+#define ITERATOR_H_
 
 /**
  * Common iterators that can be used by containers.
  */
 
-namespace toy {
+namespace std {
+
+namespace ext {
 
 template <typename T>
 class PointerIterator {
@@ -35,6 +37,8 @@ class PointerIterator {
   T *ptr_;
 };
 
-}  // namespace toy
+}  // namespace ext
+
+}  // namespace std
 
 #endif

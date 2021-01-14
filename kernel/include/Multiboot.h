@@ -1,9 +1,10 @@
 #ifndef MULTIBOOT_H_
 #define MULTIBOOT_H_
 
-#include <kassert.h>
-#include <kstdint.h>
-#include <unique.h>
+#include <assert.h>
+#include <stdint.h>
+
+#include <memory>
 
 // See https://www.gnu.org/software/grub/manual/multiboot/multiboot.html for
 // information on individual fields.

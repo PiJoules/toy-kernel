@@ -1,0 +1,36 @@
+#ifndef TUPLE_H_
+#define TUPLE_H_
+
+namespace std {
+
+template <typename First, typename... Rest>
+struct tuple : public tuple<Rest...> {
+  tuple(First first, Rest... rest) : tuple<Rest...>(rest...), first(first) {}
+
+  First first;
+};
+
+template <typename First>
+struct tuple<First> {
+  tuple(First first) : first(first) {}
+
+  First first;
+};
+
+template <size_t I, class T>
+struct tuple_element;
+
+// recursive case
+template <size_t I, class Head, class... Tail>
+struct tuple_element<I, tuple<Head, Tail...>>
+    : tuple_element<I - 1, tuple<Tail...>> {};
+
+// base case
+template <class Head, class... Tail>
+struct tuple_element<0, tuple<Head, Tail...>> {
+  typedef Head type;
+};
+
+}  // namespace std
+
+#endif

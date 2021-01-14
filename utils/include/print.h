@@ -1,7 +1,7 @@
 #ifndef PRINT_H_
 #define PRINT_H_
 
-#include <ktype_traits.h>
+#include <type_traits.h>
 
 /**
  * This header contains utilities for print formatting.
@@ -28,7 +28,7 @@ void Print(PutFunc put, const char* str);
  *   template <>
  *   void PrintFormatter(PutFunc put, T val) {...}
  */
-template <typename T1, toy::enable_if_t<!toy::is_pointer<T1>::value, int> = 0>
+template <typename T1, std::enable_if_t<!std::is_pointer<T1>::value, int> = 0>
 void PrintFormatter(PutFunc put, T1 val);
 
 /**
@@ -38,7 +38,7 @@ void PrintFormatter(PutFunc put, T1 val);
  *   using terminal::Hex;
  *   terminal::WriteF("Hex value: {}\n", Hex(1));
  */
-template <typename T, toy::enable_if_t<toy::is_integral<T>::value, int> = 0>
+template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
 struct Hex {
   Hex(T val) : val(val) {}
   T val;
@@ -46,18 +46,18 @@ struct Hex {
 
 template <typename T>
 struct is_string
-    : public toy::disjunction<
-          toy::is_same<char*, typename toy::decay<T>::type>,
-          toy::is_same<const char*, typename toy::decay<T>::type> > {};
+    : public std::disjunction<
+          std::is_same<char*, typename std::decay<T>::type>,
+          std::is_same<const char*, typename std::decay<T>::type> > {};
 
 template <typename T1,
-          toy::enable_if_t<toy::is_pointer<T1>::value && !is_string<T1>::value,
+          std::enable_if_t<std::is_pointer<T1>::value && !is_string<T1>::value,
                            int> = 0>
 void PrintFormatter(PutFunc put, T1 val) {
   PrintFormatter(put, Hex(reinterpret_cast<uintptr_t>(val)));
 }
 
-template <typename T1, toy::enable_if_t<is_string<T1>::value, int> = 0>
+template <typename T1, std::enable_if_t<is_string<T1>::value, int> = 0>
 void PrintFormatter(PutFunc put, T1 val);
 
 template <typename T1>

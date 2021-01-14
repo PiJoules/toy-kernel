@@ -1,0 +1,59 @@
+#ifndef MEMORY_H_
+#define MEMORY_H_
+
+#include <algorithm>
+#include <type_traits.h>
+#include <utility.h>
+
+namespace std {
+
+template <typename T>
+class unique_ptr {
+ public:
+  unique_ptr() : data_(nullptr) {}
+  unique_ptr(T *data) : data_(data) {}
+  unique_ptr(unique_ptr<T> &&other) : data_(nullptr) {
+    unique_ptr<T> tmp(other.release());
+    tmp.swap(*this);
+  }
+  unique_ptr<T> &operator=(unique_ptr<T> &&other) {
+    if (this != &other) {
+      unique_ptr<T> tmp(other.release());
+      tmp.swap(*this);
+    }
+    return *this;
+  }
+
+  unique_ptr(unique_ptr<T> &other) = delete;
+  unique_ptr<T> &operator=(unique_ptr<T> &other) = delete;
+
+  void swap(unique_ptr<T> &other) { std::swap(data_, other.data_); }
+
+  T *release() {
+    T *released = nullptr;
+    std::swap(released, data_);
+    return released;
+  }
+
+  ~unique_ptr() {
+    if (data_) delete data_;
+  }
+
+  T &operator*() const { return *data_; }
+  T *operator->() const { return data_; }
+  T *get() const { return data_; }
+
+  operator bool() const { return data_; }
+
+ private:
+  T *data_;
+};
+
+template <typename T, typename... Args>
+unique_ptr<T> make_unique(Args &&...args) {
+  return unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+}  // namespace std
+
+#endif

@@ -1,9 +1,9 @@
-#ifndef KUTILITY_H_
-#define KUTILITY_H_
+#ifndef UTILITY_H_
+#define UTILITY_H_
 
-#include <ktype_traits.h>
+#include <type_traits.h>
 
-namespace toy {
+namespace std {
 
 template <typename T>
 constexpr typename remove_reference<T>::type &&move(T &&arg) noexcept {
@@ -23,13 +23,13 @@ constexpr T &&forward(typename remove_reference<T>::type &&arg) noexcept {
 }
 
 template <typename T1, typename T2>
-struct Pair {
+struct pair {
   T1 first;
   T2 second;
 
-  Pair(const T1 &first, const T2 &second) : first(first), second(second) {}
+  pair(const T1 &first, const T2 &second) : first(first), second(second) {}
 };
 
-}  // namespace toy
+}  // namespace std
 
 #endif

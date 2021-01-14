@@ -2,9 +2,11 @@
 #define PAGING_H_
 
 #include <BitArray.h>
-#include <kstdint.h>
-#include <kstring.h>
+#include <kernel.h>
 #include <panic.h>
+#include <stdint.h>
+
+#include <string>
 
 // Memory layout
 // [0MB   - 4MB)    RESERVED

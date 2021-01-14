@@ -8,7 +8,7 @@ uint32_t syscall_terminal_write(const char *str) {
   return a;
 }
 
-int main() {
+int __user_main() {
   i = 0;
   syscall_terminal_write("  Hello from\n");
   syscall_terminal_write("  userspace program!\n");

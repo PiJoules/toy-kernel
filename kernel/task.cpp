@@ -1,6 +1,6 @@
 #include <DescriptorTables.h>
+#include <assert.h>
 #include <isr.h>
-#include <kassert.h>
 #include <kernel.h>
 #include <kmalloc.h>
 #include <ktask.h>

@@ -2,7 +2,7 @@
  * These are builtin functions taken from LLVM's compiler-rt. These are
  * specifically needed for clang to allow 64 bit operations on a 32 bit target.
  */
-#include <kstdint.h>
+#include <stdint.h>
 
 #ifdef __clang__
 

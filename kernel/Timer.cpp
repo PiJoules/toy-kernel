@@ -2,8 +2,8 @@
 #include <io.h>
 #include <isr.h>
 #include <kernel.h>
-#include <kstdint.h>
 #include <ktask.h>
+#include <stdint.h>
 
 uint32_t tick = 0;
 

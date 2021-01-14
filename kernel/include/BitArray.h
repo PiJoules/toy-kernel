@@ -1,7 +1,7 @@
 #ifndef BIT_ARRAY_H_
 #define BIT_ARRAY_H_
 
-#include <kstdint.h>
+#include <stdint.h>
 #include <string.h>
 
 namespace toy {

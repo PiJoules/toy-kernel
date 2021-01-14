@@ -1,7 +1,8 @@
 #ifndef BITVECTOR_H_
 #define BITVECTOR_H_
 
-#include <kassert.h>
+#include <assert.h>
+#include <kernel.h>
 #include <kmalloc.h>
 #include <string.h>
 

@@ -1,11 +1,11 @@
 #ifndef VECTOR_H_
 #define VECTOR_H_
 
-#include <initializer_list.h>
+#include <initializer_list>
 #include <iterator.h>
-#include <kalgorithm.h>
+#include <algorithm>
 #include <kmalloc.h>
-#include <knew.h>
+#include <new.h>
 
 /**
  * Naive header-only vector implementation.
@@ -13,54 +13,52 @@
  * Note that alignment of data stored in by default will use kMaxAlignment.
  */
 
-namespace toy {
+namespace std {
 
-constexpr size_t kDefaultCapacity = 8;
-
-template <typename T, size_t InitCapacity = kDefaultCapacity>
-class Vector {
+template <typename T, size_t InitCapacity = 8>
+class vector {
  public:
   static_assert(InitCapacity > 0,
                 "The initial vector capacity should be non-zero.");
-  Vector()
+  vector()
       : size_(0), capacity_(InitCapacity), data_(toy::kmalloc<T>(capacity_)) {}
 
   /**
    * This is undefined if [start, end) is invalid.
    */
-  Vector(const T *start, const T *end)
+  vector(const T *start, const T *end)
       : size_(end - start),
-        capacity_(max(InitCapacity, size_)),
+        capacity_(std::max(InitCapacity, size_)),
         data_(toy::kmalloc<T>(capacity_)) {
     assert(start <= end && "Invalid pointer range");
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(start[i]); }
   }
 
-  Vector(toy::InitializerList<T> l)
+  vector(toy::InitializerList<T> l)
       : size_(l.size()),
-        capacity_(max(InitCapacity, size_)),
+        capacity_(std::max(InitCapacity, size_)),
         data_(toy::kmalloc<T>(capacity_)) {
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(l[i]); }
   }
 
-  Vector(const Vector<T> &other)
+  vector(const vector<T> &other)
       : size_(other.size()),
         capacity_(max(InitCapacity, other.size_)),
         data_(toy::kmalloc<T>(capacity_)) {
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(other[i]); }
   }
 
-  Vector(Vector<T> &&other)
+  vector(vector<T> &&other)
       : size_(other.size_),
         capacity_(other.capacity_),
         data_(toy::kmalloc<T>(capacity_)) {
-    for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(move(other[i])); }
+    for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(std::move(other[i])); }
 
     // After the move, `other` is guaranteed to be empty().
     other.size_ = 0;
   }
 
-  ~Vector() {
+  ~vector() {
     for (size_t i = 0; i < size_; ++i) { data_[i].~T(); }
     kfree(data_);
   }
@@ -74,7 +72,7 @@ class Vector {
   }
   void push_back(T &&item) {
     IncrementSize();
-    new (&data_[size_ - 1]) T(move(item));
+    new (&data_[size_ - 1]) T(std::move(item));
   }
 
   T &operator[](size_t index) { return data_[index]; }
@@ -83,8 +81,8 @@ class Vector {
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
-  PointerIterator<T> begin() const { return PointerIterator(data_); }
-  PointerIterator<T> end() const { return PointerIterator(data_ + size_); }
+  ext::PointerIterator<T> begin() const { return ext::PointerIterator(data_); }
+  ext::PointerIterator<T> end() const { return ext::PointerIterator(data_ + size_); }
 
   const T *data() const { return data_; }
 
@@ -105,6 +103,6 @@ class Vector {
   T *data_;
 };
 
-}  // namespace toy
+}  // namespace std
 
 #endif

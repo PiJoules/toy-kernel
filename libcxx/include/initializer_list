@@ -10,7 +10,7 @@
  */
 
 #include <iterator.h>
-#include <kstdint.h>
+#include <stdint.h>
 
 namespace std {
 
@@ -18,11 +18,11 @@ template <typename T>
 class initializer_list {
  public:
   size_t size() const { return size_; }
-  toy::PointerIterator<T> begin() const {
-    return toy::PointerIterator<T>(begin_);
+  ext::PointerIterator<T> begin() const {
+    return ext::PointerIterator<T>(begin_);
   }
-  toy::PointerIterator<T> end() const {
-    return toy::PointerIterator<T>(begin_ + size_);
+  ext::PointerIterator<T> end() const {
+    return ext::PointerIterator<T>(begin_ + size_);
   }
   const T &operator[](size_t i) const { return begin_[i]; }
 

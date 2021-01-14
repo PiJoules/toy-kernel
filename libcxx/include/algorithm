@@ -1,9 +1,9 @@
-#ifndef KALGORITHM_H_
-#define KALGORITHM_H_
+#ifndef ALGORITHM_H_
+#define ALGORITHM_H_
 
-#include <kutility.h>
+#include <utility.h>
 
-namespace toy {
+namespace std {
 
 template <typename T>
 constexpr const T &min(const T &a, const T &b) {
@@ -22,6 +22,6 @@ void swap(T &a, T &b) {
   b = move(temp);
 }
 
-}  // namespace toy
+}  // namespace std
 
 #endif

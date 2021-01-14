@@ -1,6 +1,6 @@
 #include <io.h>
-#include <kstdint.h>
-#include <kstring.h>
+#include <stdint.h>
+#include <string.h>
 
 namespace serial {
 

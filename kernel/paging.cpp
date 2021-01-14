@@ -1,6 +1,6 @@
 #include <isr.h>
-#include <knew.h>
 #include <ktask.h>
+#include <new.h>
 #include <paging.h>
 #include <print.h>
 #include <stacktrace.h>

@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel-kernel)
-enable_language(CXX ASM)
+enable_language(CXX)
 
 add_library(asm_objs STATIC boot.s gdt.s interrupt.s task.s)
 target_compile_options(asm_objs
@@ -11,11 +11,10 @@ target_compile_options(asm_objs
 add_library(cpp_objs STATIC
   kernel.cpp DescriptorTables.cpp
   isr.cpp Timer.cpp
-  paging.cpp panic.cpp kassert.cpp tests.cpp kmalloc.cpp task.cpp
+  paging.cpp panic.cpp tests.cpp kmalloc.cpp task.cpp
   syscall.cpp keyboard.cpp
-  kstdlib.cpp
-  builtins.cpp
-  serial.cpp cxa_pure_virtual.cpp new.cpp vfs.cpp stacktrace.cpp print.cpp)
+  serial.cpp
+  vfs.cpp stacktrace.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
 set(KERNEL_COMPILE_FLAGS
   -target i386
@@ -42,8 +41,20 @@ set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
 set(BUILD_KERNEL_LIBC 1)
 add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_libc_build)
 
+# FIXME: We should not assume the directory is adjascent to this one.
+set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
+set(BUILD_KERNEL_LIBCXX 1)
+add_subdirectory(${LIBCXX_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_libcxx_build)
+
+# FIXME: We should not assume the directory is adjascent to this one.
+set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
+set(BUILD_KERNEL_UTILS 1)
+add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_utils)
+
 target_compile_options(cpp_objs PRIVATE ${KERNEL_COMPILE_FLAGS})
 target_include_directories(cpp_objs PRIVATE ${LIBC_PROJECT_DIR}/include/)
+target_include_directories(cpp_objs PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+target_include_directories(cpp_objs PRIVATE ${UTILS_PROJECT_DIR}/include/)
 
 # TODO: Move this to a user program.
 ## The object file provided by this will provided the symbols needed for fonts
@@ -72,11 +83,13 @@ add_custom_target(${KERNEL} ALL
 
           --no-whole-archive
           $<TARGET_FILE:kernel_libc>
+          $<TARGET_FILE:kernel_libcxx>
+          $<TARGET_FILE:kernel_utils>
 
           --end-group
 
   COMMAND grub-file --is-x86-multiboot ${KERNEL}
 
   COMMENT "Link ${KERNEL}"
-  DEPENDS asm_objs cpp_objs kernel_libc
+  DEPENDS asm_objs cpp_objs kernel_libc kernel_libcxx kernel_utils
   VERBATIM)

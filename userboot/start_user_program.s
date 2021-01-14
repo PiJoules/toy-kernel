@@ -8,10 +8,13 @@ stack_top:
   .type __user_program_entry, @function
 __user_program_entry:
   // Setup the stack.
+  // FIXME: This clobbers any arguments we may want to pass from a task
+  // creation. We should probably instead allocate some memory region that we
+  // can copy our task arguments and read from there.
   mov $stack_top, %esp
 
   // Jump to user-defined main.
-  call main
+  call __user_main
 
   // Call user_thread_exit().
   mov $1, %eax

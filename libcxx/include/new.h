@@ -1,5 +1,5 @@
-#ifndef KNEW_H_
-#define KNEW_H_
+#ifndef NEW_H_
+#define NEW_H_
 
 // Declarations for placement new.
 inline void *operator new(size_t, void *p) { return p; }

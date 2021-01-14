@@ -1,9 +1,10 @@
-#ifndef KTYPE_TRAITS_H_
-#define KTYPE_TRAITS_H_
+#ifndef TYPE_TRAITS_H_
+#define TYPE_TRAITS_H_
 
-#include <kstdint.h>
+#include <stddef.h>
+#include <stdint.h>
 
-namespace toy {
+namespace std {
 
 template <bool B, class T = void>
 struct enable_if {};
@@ -252,6 +253,6 @@ struct is_lvalue_reference<T &> {
   static constexpr bool value = true;
 };
 
-}  // namespace toy
+}  // namespace std
 
 #endif

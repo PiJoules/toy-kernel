@@ -6,9 +6,11 @@
  * https://functionalcpp.wordpress.com/2013/08/05/function-traits/
  */
 
-#include <tuple.h>
+#include <tuple>
 
-namespace toy {
+namespace std {
+
+namespace ext {
 
 template <typename F>
 struct FunctionTraits;
@@ -24,7 +26,7 @@ struct FunctionTraits<R(Args...)> {
   template <size_t N>
   struct argument {
     static_assert(N < num_args, "error: invalid parameter index.");
-    using type = typename toy::TupleElement<N, toy::Tuple<Args...>>::type;
+    using type = typename tuple_element<N, tuple<Args...>>::type;
   };
 };
 
@@ -42,6 +44,8 @@ struct FunctionTraits<R (C::*)(Args...) const>
 template <class C, class R>
 struct FunctionTraits<R(C::*)> : public FunctionTraits<R(C&)> {};
 
-}  // namespace toy
+}  // namespace ext
+
+}  // namespace std
 
 #endif

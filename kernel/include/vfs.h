@@ -5,13 +5,14 @@
 // the kernel and user applications can share this for reading off the initial
 // ramdisk.
 
+#include <assert.h>
 #include <bitvector.h>
-#include <kassert.h>
-#include <kstdint.h>
-#include <kstring.h>
+#include <stdint.h>
 #include <string.h>
-#include <unique.h>
-#include <vector.h>
+
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace vfs {
 
@@ -52,26 +53,26 @@ struct Node {
 struct File : public Node {
   // Use a vector instead of a string because some of the contents could contain
   // '0' which would otherwise be read as a null terminator.
-  toy::Vector<uint8_t> contents;
+  std::vector<uint8_t> contents;
 
   File(uint32_t id, const char name[kFilenameSize], size_t size,
        uint8_t *&contents);
 };
 
 struct Directory : public Node {
-  toy::Vector<toy::Unique<Node>> files;
+  std::vector<std::unique_ptr<Node>> files;
 
   Directory(uint32_t id, const char name[kFilenameSize],
-            toy::Vector<toy::Unique<Node>> &files);
+            std::vector<std::unique_ptr<Node>> &files);
 
-  bool hasFile(const toy::String &name) const;
-  const Node *getFile(const toy::String &name) const;
+  bool hasFile(const std::string &name) const;
+  const Node *getFile(const std::string &name) const;
 };
 
 /**
  * Parse a Directory from a raw pointer.
  */
-toy::Unique<Directory> ParseVFS(uint8_t *bytes, uint8_t *bytes_end);
+std::unique_ptr<Directory> ParseVFS(uint8_t *bytes, uint8_t *bytes_end);
 
 }  // namespace vfs
 

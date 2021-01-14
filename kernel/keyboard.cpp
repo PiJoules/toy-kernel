@@ -2,11 +2,14 @@
  * FIXME: This should be moved into user code and not remain in kernel code.
  */
 
+#include <assert.h>
 #include <io.h>
 #include <isr.h>
-#include <kassert.h>
+#include <kernel.h>
 #include <keyboard.h>
 #include <panic.h>
+#include <print.h>
+#include <serial.h>
 #include <type.h>
 
 namespace {

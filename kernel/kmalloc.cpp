@@ -1,6 +1,5 @@
-#include <kassert.h>
+#include <assert.h>
 #include <kmalloc.h>
-#include <kstring.h>
 #include <paging.h>
 #include <panic.h>
 

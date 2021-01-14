@@ -2,10 +2,13 @@
 #define ITERABLE_H_
 
 #include <function_traits.h>
-#include <initializer_list.h>
-#include <kutility.h>
+#include <utility.h>
 
-namespace toy {
+#include <initializer_list>
+
+namespace std {
+
+namespace ext {
 
 template <typename ContainerTy>
 class Iterable {
@@ -39,7 +42,7 @@ class Enumerate {
     }
 
     auto operator*() const {
-      return Pair<size_t, typename IteratorTy::type>(first, *second);
+      return std::pair<size_t, typename IteratorTy::type>(first, *second);
     }
 
     bool operator==(const EnumerateIterator &other) const {
@@ -64,6 +67,8 @@ class Enumerate {
   Iterable<ContainerTy> iterable_;
 };
 
-}  // namespace toy
+}  // namespace ext
+
+}  // namespace std
 
 #endif

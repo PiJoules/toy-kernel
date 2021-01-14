@@ -1,4 +1,6 @@
-#include <kassert.h>
+#include <assert.h>
+
+#ifdef KERNEL
 #include <kernel.h>
 #include <stacktrace.h>
 
@@ -17,3 +19,4 @@ void __assert(bool condition, const char *msg, const char *filename, int line,
   // Halt by going into an infinite loop.
   LOOP_INDEFINITELY();
 }
+#endif

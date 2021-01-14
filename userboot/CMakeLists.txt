@@ -53,6 +53,11 @@ set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
 set(BUILD_USER_LIBC 1)
 add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libc_build)
 
+# FIXME: We should not assume the directory is adjascent to this one.
+set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
+set(BUILD_USER_UTILS 1)
+add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_utils_build)
+
 add_library(bootstrap_lib STATIC start_user_program.s)
 target_compile_options(bootstrap_lib
   PRIVATE -target i386)
@@ -76,6 +81,7 @@ function(make_flat_user_binary name)
 
             --no-whole-archive
             $<TARGET_FILE:user_libc>
+            $<TARGET_FILE:user_utils>
 
             --end-group
 

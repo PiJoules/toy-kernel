@@ -6,10 +6,10 @@
  */
 
 #include <Multiboot.h>
-#include <kstdint.h>
 #include <kstring.h>
-#include <ktype_traits.h>
 #include <print.h>
+#include <stdint.h>
+#include <type_traits.h>
 
 // A terminal that operates undef VGA text mode 3 (see
 // https://wiki.osdev.org/Text_UI#Video_Mode).

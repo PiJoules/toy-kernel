@@ -1,8 +1,8 @@
 #include <DescriptorTables.h>
 #include <Multiboot.h>
 #include <Timer.h>
+#include <assert.h>
 #include <io.h>
-#include <kassert.h>
 #include <kernel.h>
 #include <keyboard.h>
 #include <kmalloc.h>
@@ -23,7 +23,7 @@ namespace {
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
 
-Task RunFlatUserBinary(const vfs::Directory &vfs, const toy::String &filename,
+Task RunFlatUserBinary(const vfs::Directory &vfs, const std::string &filename,
                        void *arg = nullptr) {
   const vfs::Node *program = vfs.getFile(filename);
   assert(program && "Could not find binary");
@@ -158,7 +158,7 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
 
   if (vfs->hasFile("userboot")) {
     DebugPrint("Launching userboot...\n");
-    Task userboot = RunFlatUserBinary(*vfs, "userboot");
+    Task userboot = RunFlatUserBinary(*vfs, "userboot", (void *)0xfeed);
     userboot.Join();
   }
 }
@@ -205,7 +205,7 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   if (num_mods) {
     DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
 
-    toy::Unique<vfs::Directory> vfs;
+    std::unique_ptr<vfs::Directory> vfs;
     vfs = vfs::ParseVFS(mod_start, mod_end);
     kfree(mod_start);
 

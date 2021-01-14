@@ -6,9 +6,9 @@
  * kernel.
  */
 
-#include <kstdint.h>
 #include <print.h>
 #include <serial.h>
+#include <stdint.h>
 
 #define __STR(s) STR(s)
 #define STR(s) #s

@@ -1,8 +1,8 @@
 #ifndef KMALLOC_H_
 #define KMALLOC_H_
 
-#include <kstdint.h>
-#include <ktype_traits.h>
+#include <stdint.h>
+#include <type_traits.h>
 
 constexpr size_t kMaxAlignment = 4;
 

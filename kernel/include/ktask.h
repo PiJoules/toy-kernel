@@ -1,12 +1,12 @@
 #ifndef TASK_H_
 #define TASK_H_
 
+#include <assert.h>
 #include <isr.h>
-#include <kassert.h>
 #include <kmalloc.h>
-#include <kstdint.h>
 #include <paging.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define DEFAULT_THREAD_STACK_SIZE 2048  // Use a 2kB kernel stack.
 

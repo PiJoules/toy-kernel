@@ -1,26 +1,23 @@
+#include <assert.h>
 #include <bitvector.h>
 #include <function_traits.h>
-#include <initializer_list.h>
 #include <isr.h>
 #include <iterable.h>
-#include <kassert.h>
 #include <kmalloc.h>
-#include <knew.h>
-#include <kstring.h>
 #include <ktask.h>
+#include <new.h>
 #include <print.h>
 #include <string.h>
 #include <tests.h>
-#include <unique.h>
-#include <vector.h>
+
+#include <initializer_list>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace {
 
 using toy::BitVector;
-using toy::MakeUnique;
-using toy::String;
-using toy::Unique;
-using toy::Vector;
 
 TEST(IntegerPower) {
   for (uint32_t p = 0, expected = 1; p < 31; ++p, expected <<= 1) {
@@ -597,7 +594,7 @@ TEST_SUITE(CppLangFeatures) {
 }
 
 TEST(PushBack) {
-  Vector<int> v;
+  std::vector<int> v;
   ASSERT_TRUE(v.empty());
   v.push_back(1);
   ASSERT_EQ(v.size(), 1);
@@ -608,7 +605,7 @@ TEST(PushBack) {
   ASSERT_EQ(v[1], 2);
   ASSERT_EQ(v[2], 3);
 
-  Vector<int, /*InitCapacity=*/1> v2;
+  std::vector<int, /*InitCapacity=*/1> v2;
   v2.push_back(1);
   v2.push_back(10);  // Triggers reallocation.
   ASSERT_EQ(v2.size(), 2);
@@ -626,14 +623,14 @@ int S::copy_ctor_calls = 0;
 TEST_SUITE(VectorRangeCtor) {
   // Under capacity
   int x[] = {1, 2, 3};
-  Vector<int, /*InitCapacity=*/8> v(x, x + 3);
+  std::vector<int, /*InitCapacity=*/8> v(x, x + 3);
   ASSERT_EQ(v.size(), 3);
   ASSERT_EQ(v[0], 1);
   ASSERT_EQ(v[1], 2);
   ASSERT_EQ(v[2], 3);
 
   // More than capacity
-  Vector<int, 1> v2(x, x + 3);
+  std::vector<int, 1> v2(x, x + 3);
   ASSERT_EQ(v2.size(), 3);
   ASSERT_EQ(v2[0], 1);
   ASSERT_EQ(v2[1], 2);
@@ -641,7 +638,7 @@ TEST_SUITE(VectorRangeCtor) {
 
   // Ensure constructors are called
   S s[] = {S(), S(), S()};
-  Vector<S> v3(s, s + 3);
+  std::vector<S> v3(s, s + 3);
   ASSERT_EQ(v2.size(), 3);
   ASSERT_EQ(S::copy_ctor_calls, 3);
 }
@@ -657,7 +654,7 @@ TEST(VectorElemDtors) {
 
   S s(dtor_calls);
   {
-    Vector<S> v;
+    std::vector<S> v;
     v.push_back(s);
   }
   ASSERT_EQ(dtor_calls, 1);
@@ -666,7 +663,7 @@ TEST(VectorElemDtors) {
 TEST(VectorRange) {
   int x[] = {0, 1, 2};
   bool found[] = {false, false, false};
-  Vector<int> v(x, x + 3);
+  std::vector<int> v(x, x + 3);
   for (auto i : v) { found[i] = true; }
   ASSERT_TRUE(found[0]);
   ASSERT_TRUE(found[1]);
@@ -678,19 +675,19 @@ TEST(VectorMove) {
 
   {
     // Empty vector move.
-    Vector<Unique<int>> v;
-    Vector<Unique<int>> v2(toy::move(v));
+    std::vector<std::unique_ptr<int>> v;
+    std::vector<std::unique_ptr<int>> v2(std::move(v));
   }
   ASSERT_EQ(heap_used, GetKernelHeapUsed());
 
   {
     // Handful of elements.
-    Vector<Unique<int>> v;
-    v.push_back(MakeUnique<int>(1));
-    v.push_back(MakeUnique<int>(2));
-    v.push_back(MakeUnique<int>(3));
+    std::vector<std::unique_ptr<int>> v;
+    v.push_back(std::make_unique<int>(1));
+    v.push_back(std::make_unique<int>(2));
+    v.push_back(std::make_unique<int>(3));
 
-    Vector<Unique<int>> v2(toy::move(v));
+    std::vector<std::unique_ptr<int>> v2(std::move(v));
     ASSERT_TRUE(v.empty());
     ASSERT_EQ(v2.size(), 3);
 
@@ -703,14 +700,14 @@ TEST(VectorMove) {
 
   {
     // From a moved reference
-    Vector<Unique<int>> v;
-    v.push_back(MakeUnique<int>(1));
-    v.push_back(MakeUnique<int>(2));
-    v.push_back(MakeUnique<int>(3));
+    std::vector<std::unique_ptr<int>> v;
+    v.push_back(std::make_unique<int>(1));
+    v.push_back(std::make_unique<int>(2));
+    v.push_back(std::make_unique<int>(3));
 
     auto &vref = v;
 
-    Vector<Unique<int>> v2(toy::move(vref));
+    std::vector<std::unique_ptr<int>> v2(std::move(vref));
     ASSERT_TRUE(v.empty());
     ASSERT_TRUE(vref.empty());
     ASSERT_EQ(v2.size(), 3);
@@ -731,42 +728,44 @@ TEST_SUITE(VectorSuite) {
   RUN_TEST(VectorMove);
 }
 
-[[maybe_unused]] float FreeFunc(int a, char b) { return a + b; }
+[[maybe_unused]] float FreeFunc(int a, char b) {
+  return static_cast<float>(a + b);
+}
 
 TEST(FunctionReturnType) {
   {
-    using Traits = toy::FunctionTraits<decltype(FreeFunc)>;
-    static_assert(toy::is_same<Traits::return_type, float>::value, "");
+    using Traits = std::ext::FunctionTraits<decltype(FreeFunc)>;
+    static_assert(std::is_same<Traits::return_type, float>::value, "");
     static_assert(Traits::num_args == 2, "");
-    static_assert(toy::is_same<Traits::argument<0>::type, int>::value, "");
-    static_assert(toy::is_same<Traits::argument<1>::type, char>::value, "");
+    static_assert(std::is_same<Traits::argument<0>::type, int>::value, "");
+    static_assert(std::is_same<Traits::argument<1>::type, char>::value, "");
   }
 
   struct A {
     int func(char) { return 0; }
   };
   {
-    using Traits = toy::FunctionTraits<decltype(&A::func)>;
-    static_assert(toy::is_same<Traits::return_type, int>::value, "");
+    using Traits = std::ext::FunctionTraits<decltype(&A::func)>;
+    static_assert(std::is_same<Traits::return_type, int>::value, "");
     static_assert(Traits::num_args == 2, "");
-    static_assert(toy::is_same<Traits::argument<0>::type, A &>::value, "");
-    static_assert(toy::is_same<Traits::argument<1>::type, char>::value, "");
+    static_assert(std::is_same<Traits::argument<0>::type, A &>::value, "");
+    static_assert(std::is_same<Traits::argument<1>::type, char>::value, "");
   }
 }
 
 TEST_SUITE(TypeTraits) { RUN_TEST(FunctionReturnType); }
 
 TEST(EnumerateIterator) {
-  Vector<int> v({1, 2, 3});
+  std::vector<int> v({1, 2, 3});
   int i = 0;
-  for (auto p : toy::Iterable(v)) {
+  for (auto p : std::ext::Iterable(v)) {
     ++i;
     ASSERT_EQ(p, i);
   }
   ASSERT_EQ(i, 3);
 
   i = 0;
-  for (auto p : toy::Enumerate(v)) {
+  for (auto p : std::ext::Enumerate(v)) {
     ASSERT_EQ(p.first, i);
     ++i;
     ASSERT_EQ(p.second, i);
@@ -810,15 +809,15 @@ TEST_SUITE(InitializerListSuite) { RUN_TEST(InitializerListTest); }
 TEST(UniqueTest) {
   size_t heapused = GetKernelHeapUsed();
   {
-    Unique<int> u;
+    std::unique_ptr<int> u;
     ASSERT_FALSE(u);
 
-    Unique<int> u2(new int(1));
+    std::unique_ptr<int> u2(new int(1));
     ASSERT_TRUE(u2);
     ASSERT_EQ(*u2, 1);
 
     // Assignment
-    u = toy::move(u2);
+    u = std::move(u2);
     ASSERT_TRUE(u);
     ASSERT_FALSE(u2);
 
@@ -827,15 +826,15 @@ TEST(UniqueTest) {
     ASSERT_EQ(*i, 1);
 
     // Swapping
-    Unique<int> u3(i);
+    std::unique_ptr<int> u3(i);
     ASSERT_EQ(*u3, 1);
-    Unique<int> u4(new int(4));
+    std::unique_ptr<int> u4(new int(4));
     u3.swap(u4);
     ASSERT_EQ(*u3, 4);
     ASSERT_EQ(*u4, 1);
 
     // Copy construction.
-    Unique<int> u5(toy::move(u4));
+    std::unique_ptr<int> u5(std::move(u4));
     ASSERT_TRUE(u5);
     ASSERT_FALSE(u4);
     ASSERT_EQ(*u5, 1);
@@ -855,17 +854,17 @@ TEST(DestructorCalled) {
 
   {
     // At normal scope exit.
-    Unique<A> a(new A(called));
+    std::unique_ptr<A> a(new A(called));
   }
   ASSERT_TRUE(called);
 
   called = false;
   {
-    Unique<A> a(new A(called));
+    std::unique_ptr<A> a(new A(called));
     {
       // Swapping.
       bool junk;
-      Unique<A> b(new A(junk));
+      std::unique_ptr<A> b(new A(junk));
 
       // Swap the pointers, so once `b` goes out of scope, `a`'s destructor will
       // be called.
@@ -876,25 +875,25 @@ TEST(DestructorCalled) {
 
   called = false;
   {
-    Unique<A> a(new A(called));
+    std::unique_ptr<A> a(new A(called));
     {
       // Moving.
       bool junk;
-      Unique<A> b(new A(junk));
+      std::unique_ptr<A> b(new A(junk));
 
       // Destructor for `b` is called after this move.
-      a = toy::move(b);
+      a = std::move(b);
       ASSERT_TRUE(called);
     }
   }
 
   called = false;
   {
-    Unique<A> a(new A(called));
+    std::unique_ptr<A> a(new A(called));
     {
       // Copy constructing.
       // Destructor for `a` is called after b exist scope.
-      Unique<A> b(toy::move(a));
+      std::unique_ptr<A> b(std::move(a));
     }
     ASSERT_TRUE(called);
   }
@@ -906,7 +905,7 @@ TEST_SUITE(UniqueSuite) {
 }
 
 TEST(StringTest) {
-  String s;
+  std::string s;
   ASSERT_TRUE(s.empty());
   s.push_back('c');
   ASSERT_EQ(s[0], 'c');
@@ -916,11 +915,11 @@ TEST(StringTest) {
 }
 
 TEST(StringConstruction) {
-  String s("abc");
+  std::string s("abc");
   ASSERT_EQ(s.size(), 3);
   ASSERT_STREQ(s.c_str(), "abc");
 
-  String s2("abc", /*init_capacity=*/1);
+  std::string s2("abc", /*init_capacity=*/1);
   ASSERT_EQ(s2.size(), 3);
   ASSERT_STREQ(s2.c_str(), "abc");
 }
