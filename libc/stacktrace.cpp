@@ -1,6 +1,6 @@
-#include <kernel.h>
 #include <print.h>
 #include <stacktrace.h>
+#include <stdio.h>
 
 namespace stacktrace {
 
@@ -16,9 +16,9 @@ struct StackFrame {
 void PrintStackTrace() {
   StackFrame *stack;
   asm volatile("mov %%ebp, %0" : "=r"(stack));
-  DebugPrint("Stack trace:\n");
+  print::Print(put, "Stack trace:\n");
   for (size_t frame = 0; stack; ++frame) {
-    DebugPrint("{}) {}\n", frame, print::Hex(stack->eip));
+    print::Print(put, "{}) {}\n", frame, print::Hex(stack->eip));
     stack = stack->ebp;
   }
 }

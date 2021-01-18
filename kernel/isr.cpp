@@ -87,6 +87,7 @@ extern "C" {
 
 // This gets called from our ASM interrupt handler stub.
 void isr_handler(X86Registers *regs) {
+  assert(!InterruptsAreEnabled());
   if (isr_t handler = interrupt_handlers[regs->int_no]) return handler(regs);
 
   DumpRegisters(regs);
@@ -94,6 +95,8 @@ void isr_handler(X86Registers *regs) {
 }
 
 void irq_handler(X86Registers *regs) {
+  assert(!InterruptsAreEnabled());
+
   // Send an EOI (end of interrupt) signal to the PICs.
   // If this interrupt involved the slave.
   if (regs->int_no >= 40) {

@@ -10,6 +10,7 @@ void __assert(bool expr, const char *msg, const char *filename, int line,
 #endif
 
 #ifdef NDEBUG
+// Still force the condition to be evaluated but do not crash on it.
 #define assert(condition) ((void)(condition))
 #else
 #define assert(condition) \

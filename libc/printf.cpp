@@ -1,8 +1,13 @@
-#include <_syscalls.h>
 #include <print.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#ifdef KERNEL
+#include <serial.h>
+#else
+#include <_syscalls.h>
+#endif
 
 bool __use_debug_log = false;
 
@@ -12,17 +17,27 @@ bool __use_debug_log = false;
 namespace {
 
 void __system_print(const char *str) {
-  if (__use_debug_log)
+#ifdef KERNEL
+  serial::AtomicWrite(str);
+#else
+  if (__use_debug_log) {
     sys::DebugPrint(str);
-  else
+  } else {
     __builtin_trap();
+  }
+#endif
 }
 
 void __system_put(char c) {
-  if (__use_debug_log)
+#ifdef KERNEL
+  serial::AtomicPut(c);
+#else
+  if (__use_debug_log) {
     sys::DebugPut(c);
-  else
+  } else {
     __builtin_trap();
+  }
+#endif
 }
 
 }  // namespace
@@ -61,11 +76,11 @@ extern "C" int printf(const char *fmt, ...) {
             __system_print(s);
             break;
           }
-          // case 'p': {
-          //  void *s = va_arg(ap, void *);
-          //  __system_print(s);
-          //  break;
-          //}
+          case 'p': {
+            void *p = va_arg(ap, void *);
+            print::PrintFormatter(__system_put, p);
+            break;
+          }
           default:
             __builtin_trap();
         }

@@ -24,18 +24,34 @@ void Initialize() {
   Write8(kCOM1 + 4, 0x0B);  // IRQs enabled, RTS/DSR set
 }
 
-char Read() {
+bool TryRead(char &c) {
+  if (Received()) {
+    c = Read8(kCOM1);
+    return true;
+  }
+  return false;
+}
+
+bool TryWrite(char c) {
+  if (IsTransmitEmpty()) {
+    Write8(kCOM1, c);
+    return true;
+  }
+  return false;
+}
+
+char AtomicRead() {
   while (!Received()) {}
   return Read8(kCOM1);
 }
 
-void Put(char c) {
+void AtomicPut(char c) {
   while (!IsTransmitEmpty()) {}
   Write8(kCOM1, c);
 }
 
-void Write(const char *str) {
-  for (size_t size = strlen(str), i = 0; i < size; ++i) Put(str[i]);
+void AtomicWrite(const char *str) {
+  for (size_t size = strlen(str), i = 0; i < size; ++i) AtomicPut(str[i]);
 }
 
 }  // namespace serial

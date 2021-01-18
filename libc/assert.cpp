@@ -1,16 +1,20 @@
 #include <assert.h>
+#include <stacktrace.h>
 
 #ifdef KERNEL
 #include <kernel.h>
-#include <stacktrace.h>
+#else
+#include <_syscalls.h>
+#include <print.h>
+#include <stdio.h>
+#endif
 
-// /tmp/test.cc:4: int main(): Assertion `0' failed.
-// Aborted
 void __assert(bool condition, const char *msg, const char *filename, int line,
               const char *pretty_func) {
   if (condition) return;
 
-  asm volatile("cli");  // Disable interrupts.
+#ifdef KERNEL
+  DisableInterrupts();
   DebugPrint("\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename, line,
              pretty_func, msg);
 
@@ -18,5 +22,13 @@ void __assert(bool condition, const char *msg, const char *filename, int line,
 
   // Halt by going into an infinite loop.
   LOOP_INDEFINITELY();
-}
+#else
+  print::Print(put, "\n{}:{}: {}: Assertion `{}` failed.\nAborted", filename,
+               line, pretty_func, msg);
+
+  stacktrace::PrintStackTrace();
+
+  // Exit this user task.
+  sys::ExitTask();
 #endif
+}

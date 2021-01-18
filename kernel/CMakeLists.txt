@@ -14,7 +14,7 @@ add_library(cpp_objs STATIC
   paging.cpp panic.cpp tests.cpp kmalloc.cpp task.cpp
   syscall.cpp keyboard.cpp
   serial.cpp
-  vfs.cpp stacktrace.cpp)
+  vfs.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
 set(KERNEL_COMPILE_FLAGS
   -target i386

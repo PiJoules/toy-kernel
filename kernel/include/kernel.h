@@ -87,7 +87,7 @@ T NextPowOf2(T x) {
  */
 template <typename... Rest>
 void DebugPrint(const char *str, Rest... rest) {
-  print::Print(serial::Put, str, rest...);
+  print::Print(serial::AtomicPut, str, rest...);
 }
 
 #endif

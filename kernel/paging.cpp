@@ -38,19 +38,16 @@ void HandlePageFault(X86Registers *regs) {
     DebugPrint("- Occurred in task: {}\n", GetCurrentTask()->getID());
   }
 
-  if (KERNEL_START <= (uint32_t)faulting_addr &&
-      (uint32_t)faulting_addr < KERNEL_END)
+  if (IsKernelCode((void *)faulting_addr))
     DebugPrint("- Accessing page in kernel binary memory\n");
 
-  if (PAGE_DIRECTORY_REGION_START <= (uint32_t)faulting_addr &&
-      (uint32_t)faulting_addr < PAGE_DIRECTORY_REGION_END)
+  if (IsPageDirRegion((void *)faulting_addr))
     DebugPrint("- Accessing page in page directory region\n");
 
-  if (KERN_HEAP_BEGIN <= (uint32_t)faulting_addr &&
-      (uint32_t)faulting_addr < KERN_HEAP_END)
+  if (IsKernelHeap((void *)faulting_addr))
     DebugPrint("- Accessing page in kernel heap memory\n");
 
-  if (USER_START <= (uint32_t)faulting_addr)
+  if (IsUserCode((void *)faulting_addr))
     DebugPrint("- Accessing page in user memory\n");
 
   DumpRegisters(regs);
@@ -60,6 +57,8 @@ void HandlePageFault(X86Registers *regs) {
   PANIC("Page fault!");
 }
 
+// This is used for keeping track of which page directories are occupied in the
+// page directory region in memory.
 class PageDirRegionBitmap : public toy::BitArray<kNumPageDirs> {
  public:
   void *getAndUseNextFreeRegion() {
@@ -108,7 +107,7 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K) {
 
   uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
 
-  // Pages reserved for the kernel (4MB - 12MB).
+  // Pages reserved for the kernel (4MB - 12MB). These are identity-mapped.
   KernelPageDir.AddPage(reinterpret_cast<void *>(KERNEL_START),
                         reinterpret_cast<void *>(KERNEL_START), flags);
   KernelPageDir.AddPage(reinterpret_cast<void *>(PAGE_DIRECTORY_REGION_START),
@@ -134,12 +133,36 @@ PageDirectory &GetKernelPageDirectory() { return KernelPageDir; }
 PhysicalBitmap4M &GetPhysicalBitmap4M() { return PhysicalBitmap; }
 
 void PageDirectory::RemovePage(void *vaddr) {
+  DisableInterruptsRAII disable_interrupts_raii;
+
   assert(reinterpret_cast<uintptr_t>(vaddr) % kPageSize4M == 0 &&
          "Address is not 4MB aligned");
   uint32_t page = PageIndex4M(vaddr);
-  PhysicalBitmap.setPageFrameFree(page);
+  auto pde = pd_impl_[page];
   pd_impl_[page] = 0;
   asm volatile("invlpg %0" ::"m"(vaddr));
+
+  uint32_t paddr_int = pde & kPageMask4M;
+  PhysicalBitmap.setPageFrameFree(PageIndex4M(paddr_int));
+
+  if (isKernelPageDir() &&
+      (IsKernelCode(vaddr) || IsKernelHeap(vaddr) || IsPageDirRegion(vaddr))) {
+    // We have updated the kernel page directory. Make sure all changes to this
+    // page directory also propagate to all other page directories.
+    for (size_t bit = 0; bit < PageDirRegion.size(); ++bit) {
+      if (!PageDirRegion.isSet(bit)) continue;
+
+      PageDirectory &pd =
+          reinterpret_cast<PageDirectory *>(PAGE_DIRECTORY_REGION_START)[bit];
+
+      assert((pd.get()[page] & PG_PRESENT) &&
+             "We are removing a common shared page. This should've already "
+             "been set prior.");
+
+      pd.get()[page] = 0;
+      PhysicalBitmap.setPageFrameFree(PageIndex4M(paddr_int));
+    }
+  }
 }
 
 IdentityMapRAII::IdentityMapRAII(void *addr, uint8_t flags)
@@ -184,7 +207,8 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags,
   // Invalidate page in TLB.
   asm volatile("invlpg %0" ::"m"(v_addr));
 
-  if (isKernelPageDir()) {
+  if (isKernelPageDir() && (IsKernelCode(v_addr) || IsKernelHeap(v_addr) ||
+                            IsPageDirRegion(v_addr))) {
     // We have updated the kernel page directory. Make sure all changes to this
     // page directory also propagate to all other page directories.
     for (size_t bit = 0; bit < PageDirRegion.size(); ++bit) {
@@ -192,9 +216,11 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags,
 
       PageDirectory &pd =
           reinterpret_cast<PageDirectory *>(PAGE_DIRECTORY_REGION_START)[bit];
-      assert(!pd.get()[index] &&
+
+      assert(!(pd.get()[index] & PG_PRESENT) &&
              "Another task's page directory entry is already used. This page "
              "should be reserved for a kernel mapping.");
+
       pd.get()[index] = pde;
       PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
     }

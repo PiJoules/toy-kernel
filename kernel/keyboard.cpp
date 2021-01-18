@@ -111,7 +111,7 @@ void KeyboardCallback([[maybe_unused]] X86Registers *regs) {
     // Key was pressed.
     switch (scancode) {
       case ENTER:
-        serial::Put('\n');
+        serial::AtomicPut('\n');
         PreviousAction = NOACTION;
         return;
       case LCTRL:
@@ -145,7 +145,7 @@ void KeyboardCallback([[maybe_unused]] X86Registers *regs) {
     }
     PreviousAction = NOACTION;
 
-    return serial::Put(pressed_key);
+    return serial::AtomicPut(pressed_key);
   } else if (scancode < 0xE0) {
     // Key was released.
     return;

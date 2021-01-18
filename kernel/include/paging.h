@@ -8,18 +8,25 @@
 
 #include <string>
 
-// Memory layout
+// Process memory layout.
+// TODO: Describe these in more detail.
 // [0MB   - 4MB)    RESERVED
 // [4MB   - 8MB)    Kernel
 // [8MB   - 12MB)   Page directory region
-// [12MB  - 16MB)   FREE
+// [12MB  - 16MB)   Shared space with user
 // [16MB  - 20MB)   GFX_MEMORY
 // [32MB  - 1GB)    KERNEL_HEAP
-// [1GB   - 4GB)    Flat user programs
+// [1GB   - 4GB)    USER_START; Flat user programs
 #define KERNEL_START 0x400000
 #define KERNEL_END 0x800000                     // 8MB
 #define PAGE_DIRECTORY_REGION_START KERNEL_END  // 8MB
 #define PAGE_DIRECTORY_REGION_END 0xC00000      // 12MB
+
+// This is generic space shared between the user and the kernel. This is
+// generally the place where the kernel can stow an initial argument to the user
+// task and the user can access it.
+#define USER_SHARED_SPACE_START 0xC00000  // 12 MB
+#define USER_SHARED_SPACE_END 0x01000000  // 16 MB
 
 // TODO: GFX virtual memory (which controls the screen for graphics mode) starts
 // at 16 MB, but we should also clearly mark where it ends.
@@ -37,6 +44,18 @@
 #define PG_WRITE 0x00000002     // page is writable
 #define PG_USER 0x00000004      // page can be accessed by user (et. all)
 #define PG_4MB 0x00000080       // pages are 4MB
+
+inline bool IsKernelCode(void *addr) {
+  return KERNEL_START <= (uintptr_t)addr && (uintptr_t)addr < KERNEL_END;
+}
+inline bool IsPageDirRegion(void *addr) {
+  return PAGE_DIRECTORY_REGION_START <= (uintptr_t)addr &&
+         (uintptr_t)addr < PAGE_DIRECTORY_REGION_END;
+}
+inline bool IsKernelHeap(void *addr) {
+  return KERN_HEAP_BEGIN <= (uintptr_t)addr && (uintptr_t)addr < KERN_HEAP_END;
+}
+inline bool IsUserCode(void *addr) { return USER_START <= (uintptr_t)addr; }
 
 constexpr uint32_t kPageMask4M = ~UINT32_C(0x3FFFFF);
 constexpr uint32_t kPageSize4M = 0x00400000;

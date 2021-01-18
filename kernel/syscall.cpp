@@ -31,23 +31,23 @@
 
 DEF_SYSCALL1(debug_write, 0, const char *)
 DEF_SYSCALL0(exit_user_task, 1)
-DEF_SYSCALL0(debug_read, 2)
+DEF_SYSCALL1(debug_read, 2, char *)
 
 namespace {
 
 constexpr uint8_t kSyscallInterrupt = 0x80;
 
-uint32_t debug_write(const char *str) {
+int32_t debug_write(const char *str) {
   DebugPrint(str);
   return 0;
 }
 
-uint32_t exit_user_task() {
+int32_t exit_user_task() {
   exit_this_task();
   return 0;
 }
 
-uint8_t debug_read() { return serial::Read(); }
+int8_t debug_read(char *c) { return serial::TryRead(*c); }
 
 void *kSyscalls[] = {
     reinterpret_cast<void *>(debug_write),
@@ -64,7 +64,7 @@ void SyscallHandler(X86Registers *regs) {
   // We don't know how many parameters the function wants, so we just push them
   // all to the stack in the correct order. The function will use all the
   // parameters it wants and we can pop them all back off afterwards.
-  uint32_t ret = 0;
+  int32_t ret = 0;
   asm volatile(
       "\
     push %1 \n \

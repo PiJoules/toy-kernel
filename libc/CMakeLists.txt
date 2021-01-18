@@ -9,6 +9,7 @@ set(COMMON_SRCS
   assert.cpp
   stdlib.cpp
   printf.cpp
+  stacktrace.cpp
   string.cpp
   type.cpp)
 

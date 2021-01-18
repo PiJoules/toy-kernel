@@ -5,9 +5,10 @@
 
 namespace sys {
 
-char DebugRead();
+bool DebugRead(char &c);
 uint32_t DebugPrint(const char *str);
-uint32_t DebugPut(char c);
+void DebugPut(char);
+void ExitTask();
 
 }  // namespace sys
 

@@ -323,15 +323,11 @@ TEST(TaskIDs) {
 }
 
 TEST(SimpleTasks) {
-  size_t stack_size = 256;
-  uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
-  uint32_t *stack2 = toy::kmalloc<uint32_t>(stack_size);
-
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Task t = Task::CreateKernelTask(func, &val, stack);
-  Task t2 = Task::CreateKernelTask(func2, &val2, stack2);
+  Task t = Task::CreateKernelTask(func, &val);
+  Task t2 = Task::CreateKernelTask(func2, &val2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -351,31 +347,11 @@ void func3(void *arg) {
 }
 
 TEST(TaskExit) {
-  size_t stack_size = 256;
-  uint32_t *stack = toy::kmalloc<uint32_t>(stack_size);
-
   uint32_t x = 10;
-  Task t = Task::CreateKernelTask(func3, &x, stack);
+  Task t = Task::CreateKernelTask(func3, &x);
 
   t.Join();
   ASSERT_EQ(x, 11);
-}
-
-TEST(DefaultStackAllocation) {
-  uint32_t val = 0;
-  uint32_t val2 = 0;
-  volatile uint32_t val3 = 0;
-  Task t = Task::CreateKernelTask(func, &val);
-  Task t2 = Task::CreateKernelTask(func2, &val2);
-
-  for (int i = 0; i < 300; ++i) ++val3;
-
-  t.Join();
-  t2.Join();
-
-  ASSERT_EQ(val, 100);
-  ASSERT_EQ(val2, 200);
-  ASSERT_EQ(val3, 300);
 }
 
 TEST(JoinOnDestructor) {
@@ -398,7 +374,6 @@ TEST_SUITE(Tasking) {
   RUN_TEST(TaskIDs);
   RUN_TEST(SimpleTasks);
   RUN_TEST(TaskExit);
-  RUN_TEST(DefaultStackAllocation);
   RUN_TEST(JoinOnDestructor);
 
   // TODO: Add test to assert user tasks get different address spaces.

@@ -172,8 +172,8 @@ void KernelEnd() {
 
   DebugPrint("Reached end of kernel.\n");
   while (1) {
-    char c = serial::Read();
-    serial::Put(c);
+    char c = serial::AtomicRead();
+    serial::AtomicPut(c);
   }
 }
 

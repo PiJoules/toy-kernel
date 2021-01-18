@@ -37,6 +37,7 @@ void InitTimer(uint32_t frequency) {
   // (1193180 Hz) by, to get our required frequency. Important to note is
   // that the divisor must be small enough to fit into 16-bits.
   uint32_t divisor = 1193180 / frequency;
+  assert(divisor <= UINT16_MAX && "Divisor cannot fit in 16 bits.");
 
   // Send the command byte.
   Write8(0x43, 0x36);

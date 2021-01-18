@@ -28,28 +28,49 @@ const Task *kMainKernelTask = nullptr;
 // TODO: Rename this to distinguish it more from `exit_this_task`.
 void task_exit();
 
-Task::Task(TaskFunc func, void *arg, bool user)
-    : Task(func, arg,
-           reinterpret_cast<uint32_t *>(kmalloc(DEFAULT_THREAD_STACK_SIZE)),
-           user) {}
-
 // The main task does not need to allocate a stack.
 Task::Task()
     : id_(next_tid++),
       state_(RUNNING),
       first_run_(false),
+      user_(false),
       pd_allocation(GetKernelPageDirectory()) {
   memset(&regs_, 0, sizeof(regs_));
 }
 
-Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
+Task::Task(TaskFunc func, void *arg, bool user)
     : id_(next_tid++),
       state_(RUNNING),
       first_run_(true),
-      stack_allocation(stack_allocation),
+      user_(user),
       pd_allocation(user ? *GetKernelPageDirectory().Clone()
                          : GetKernelPageDirectory()) {
   memset(&regs_, 0, sizeof(regs_));
+
+  if (user) {
+    // Get a free physical address.
+    void *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
+
+    void *user_shared = (void *)USER_SHARED_SPACE_START;
+
+    // Allocate the shared user space.
+    assert(!getPageDirectory().isVirtualMapped(user_shared) &&
+           "The page directory for this user task should not have previously "
+           "reserves the shared user space page.");
+    getPageDirectory().AddPage((void *)USER_SHARED_SPACE_START, paddr, PG_USER);
+
+    // Temporarily use the same physical address for this page directory. Writes
+    // to this will also be written to the shared space in the user PD.
+    GetKernelPageDirectory().AddPage(user_shared, paddr, /*flags=*/0,
+                                     /*allow_physical_reuse=*/true);
+    memcpy((void *)(USER_SHARED_SPACE_END - sizeof(void *)), &arg,
+           sizeof(void *));
+
+    stack_allocation = (uint32_t *)USER_SHARED_SPACE_START;
+  } else {
+    stack_allocation =
+        reinterpret_cast<uint32_t *>(kmalloc(DEFAULT_THREAD_STACK_SIZE));
+  }
 
   assert(reinterpret_cast<uintptr_t>(stack_allocation) % 4 == 0 &&
          "The stack allocation must be 4 byte aligned.");
@@ -60,10 +81,13 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
   // argument passed to the task. Once we hit the end of the task function,
   // we will `ret` into the task_exit function.
   *(--stack_bottom) = reinterpret_cast<uint32_t>(arg);
-  if (user)
+  if (user) {
+    // FIXME: This might not be needed if user tasks should just end up calling
+    // the task exit syscall.
     *(--stack_bottom) = reinterpret_cast<uint32_t>(syscall_exit_user_task);
-  else
+  } else {
     *(--stack_bottom) = reinterpret_cast<uint32_t>(task_exit);
+  }
 
   // When this as loaded as the new stack pointer, the `ret` instruction at the
   // end of `switch_task` will instead jump to this function.
@@ -97,6 +121,9 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
   if (user) {
     esp0_allocation = toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE);
     userfunc_ = func;
+
+    // We don't need to access the stack anymore after this.
+    GetKernelPageDirectory().RemovePage((void *)USER_SHARED_SPACE_START);
   }
 
   assert(ReadyQueue && "Scheduling has not yet been initialized.");
@@ -111,6 +138,9 @@ Task::Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user)
 // RVO guarantees that the destructor will not be called multiple times for
 // these functions that return and create tasks.
 Task Task::CreateUserTask(TaskFunc func, size_t codesize, void *arg) {
+  assert(codesize <= kPageSize4M &&
+         "Need to allocate more than 4MB for usercode.");
+
   Task t(func, arg, /*user=*/true);
   assert(codesize && "Expected a non-zero size for user code");
   t.usercode_size_ = codesize;
@@ -121,16 +151,11 @@ Task Task::CreateKernelTask(TaskFunc func, void *arg) {
   return Task(func, arg, /*user=*/false);
 }
 
-Task Task::CreateKernelTask(TaskFunc func, void *arg,
-                            uint32_t *stack_allocation) {
-  return Task(func, arg, stack_allocation, /*user=*/false);
-}
-
 Task::~Task() {
   if (this != GetMainKernelTask()) Join();
   if (isUserTask()) pd_allocation.ReclaimPageDirRegion();
-  kfree(stack_allocation);
-  kfree(esp0_allocation);
+  if (isKernelTask()) kfree(stack_allocation);
+  if (isUserTask()) kfree(esp0_allocation);
 }
 
 void Task::Join() {

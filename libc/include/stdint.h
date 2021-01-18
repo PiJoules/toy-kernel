@@ -40,6 +40,7 @@ static_assert(sizeof(uintptr_t) >= sizeof(char *), "");
 #define UINT64_MAX (18446744073709551615ULL)
 
 #define INT32_MIN (-2147483648)
+#define INT32_MAX 0x7fffffff
 
 // Number of bits in a byte.
 #define CHAR_BIT 8

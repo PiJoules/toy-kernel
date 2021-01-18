@@ -10,14 +10,16 @@ uint32_t DebugPrint(const char *str) {
   return a;
 }
 
-uint32_t DebugPut(char c) {
+void DebugPut(char c) {
   char str[2] = {c, 0};
-  return DebugPrint(str);
+  DebugPrint(str);
 }
 
-char DebugRead() {
-  uint32_t a;
-  asm volatile("int " INTERRUPT : "=a"(a) : "0"(2));
+void ExitTask() { asm volatile("int " INTERRUPT ::"a"(1)); }
+
+bool DebugRead(char &c) {
+  int32_t a;
+  asm volatile("int " INTERRUPT : "=a"(a) : "0"(2), "b"((int32_t)&c));
   return a;
 }
 

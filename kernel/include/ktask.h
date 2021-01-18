@@ -32,18 +32,8 @@ class Task {
  private:
   Task(TaskFunc func, void *arg, bool user = false);
 
-  /**
-   * Create a task from a heap-allocated stack. This allocation must be a
-   * raw pointer eventually returned by kmalloc(). The this function takes
-   * ownership of the stack allocation and is in charge of freeing it when the
-   * task is finished.
-   */
-  Task(TaskFunc func, void *arg, uint32_t *stack_allocation, bool user = false);
-
  public:
   static Task CreateKernelTask(TaskFunc func, void *arg);
-  static Task CreateKernelTask(TaskFunc func, void *arg,
-                               uint32_t *stack_allocation);
   static Task CreateUserTask(TaskFunc func, size_t codesize, void *arg);
 
   ~Task();
@@ -83,7 +73,7 @@ class Task {
 
   PageDirectory &getPageDirectory() const { return pd_allocation; }
 
-  bool isUserTask() const { return getRegs().ds == kUserDataSegment; }
+  bool isUserTask() const { return user_; }
   bool isKernelTask() const { return !isUserTask(); }
 
   uint32_t *getStackPointer() const {
@@ -91,11 +81,16 @@ class Task {
            "Should not need to call this method on the main task since we do "
            "not allocate a stack for it.");
     assert(stack_allocation);
-    auto *header = MallocHeader::FromPointer(stack_allocation);
-    auto *stack_bottom = reinterpret_cast<uint32_t *>(header->getEnd());
-    assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
-           "The user stack is not 4 byte aligned.");
-    return stack_bottom;
+
+    if (isKernelTask()) {
+      auto *header = MallocHeader::FromPointer(stack_allocation);
+      auto *stack_bottom = reinterpret_cast<uint32_t *>(header->getEnd());
+      assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
+             "The user stack is not 4 byte aligned.");
+      return stack_bottom;
+    } else {
+      return (uint32_t *)USER_SHARED_SPACE_END;
+    }
   }
 
   /**
@@ -128,6 +123,7 @@ class Task {
   // This is volatile so we can access it each time in Join().
   volatile TaskState state_;
   bool first_run_;
+  bool user_;
 
   X86TaskRegs regs_;
 
