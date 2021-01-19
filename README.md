@@ -49,7 +49,8 @@ $ qemu-system-i386 -kernel kernel/kernel -nographic
 
 Exit QEMU with `Alt+2, type quit, ENTER`.
 
-Note that launching QEMU with `-nographic` can do some weird thing
+Note that launching QEMU with `-nographic` can mess up the terminal on some
+shells. Use `reset` after exiting QEMU to fix this.
 
 #### Graphics Modes
 
