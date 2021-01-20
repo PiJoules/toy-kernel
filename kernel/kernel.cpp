@@ -23,8 +23,8 @@ namespace {
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
 
-Task RunFlatUserBinary(const vfs::Directory &vfs, const std::string &filename,
-                       void *arg = nullptr) {
+UserTask RunFlatUserBinary(const vfs::Directory &vfs,
+                           const std::string &filename, void *arg = nullptr) {
   const vfs::Node *program = vfs.getFile(filename);
   assert(program && "Could not find binary");
 
@@ -33,7 +33,7 @@ Task RunFlatUserBinary(const vfs::Directory &vfs, const std::string &filename,
   DebugPrint("{} is {} bytes\n", filename.c_str(), size);
 
   // Actually create and run the user tasks.
-  return Task::CreateUserTask((TaskFunc)file.contents.data(), size, arg);
+  return UserTask((TaskFunc)file.contents.data(), size, arg);
 }
 
 /**
@@ -134,9 +134,9 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
   // contained in its own test rather than hardcoding it here.
   DebugPrint("Checking userspace tasks...\n");
 
-  Task t1 = RunFlatUserBinary(*vfs, "test_user_program.bin");
+  UserTask t1 = RunFlatUserBinary(*vfs, "test_user_program.bin");
   DebugPrint("Launched task {}\n", t1.getID());
-  Task t2 = RunFlatUserBinary(*vfs, "test_user_program.bin");
+  UserTask t2 = RunFlatUserBinary(*vfs, "test_user_program.bin");
   DebugPrint("Launched task {}\n", t2.getID());
   t1.Join();
   t2.Join();
@@ -147,7 +147,7 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
     // Test that I/O instructions are not triggerred in userspace.
     auto old_handler = GetInterruptHandler(kGeneralProtectionFault);
     RegisterInterruptHandler(kGeneralProtectionFault, CheckGPFTriggerred);
-    Task io_priv_test = RunFlatUserBinary(*vfs, "test_user_io_privilege");
+    UserTask io_priv_test = RunFlatUserBinary(*vfs, "test_user_io_privilege");
     io_priv_test.Join();
 
     DebugPrint(
@@ -158,7 +158,7 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
 
   if (vfs->hasFile("userboot")) {
     DebugPrint("Launching userboot...\n");
-    Task userboot = RunFlatUserBinary(*vfs, "userboot", (void *)0xfeed);
+    UserTask userboot = RunFlatUserBinary(*vfs, "userboot", (void *)0xfeed);
     userboot.Join();
   }
 }

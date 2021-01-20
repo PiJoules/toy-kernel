@@ -25,144 +25,122 @@ const Task *kMainKernelTask = nullptr;
 
 }  // namespace
 
-// TODO: Rename this to distinguish it more from `exit_this_task`.
-void task_exit();
-
-// The main task does not need to allocate a stack.
+// This is used for constructing the main kernel task.
 Task::Task()
     : id_(next_tid++),
       state_(RUNNING),
-      first_run_(false),
-      user_(false),
-      pd_allocation(GetKernelPageDirectory()) {
+      pd_allocation_(GetKernelPageDirectory()) {
   memset(&regs_, 0, sizeof(regs_));
 }
 
-Task::Task(TaskFunc func, void *arg, bool user)
-    : id_(next_tid++),
-      state_(RUNNING),
-      first_run_(true),
-      user_(user),
-      pd_allocation(user ? *GetKernelPageDirectory().Clone()
-                         : GetKernelPageDirectory()) {
+KernelTask::KernelTask() : Task() {}
+
+Task::Task(PageDirectory &pd_allocation)
+    : id_(next_tid++), state_(READY), pd_allocation_(pd_allocation) {
   memset(&regs_, 0, sizeof(regs_));
+  assert(ReadyQueue && "Scheduling has not yet been initialized.");
+}
 
-  if (user) {
-    // Get a free physical address.
-    void *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
-
-    void *user_shared = (void *)USER_SHARED_SPACE_START;
-
-    // Allocate the shared user space.
-    assert(!getPageDirectory().isVirtualMapped(user_shared) &&
-           "The page directory for this user task should not have previously "
-           "reserves the shared user space page.");
-    getPageDirectory().AddPage((void *)USER_SHARED_SPACE_START, paddr, PG_USER);
-
-    // Temporarily use the same physical address for this page directory. Writes
-    // to this will also be written to the shared space in the user PD.
-    GetKernelPageDirectory().AddPage(user_shared, paddr, /*flags=*/0,
-                                     /*allow_physical_reuse=*/true);
-    memcpy((void *)(USER_SHARED_SPACE_END - sizeof(void *)), &arg,
-           sizeof(void *));
-
-    stack_allocation = (uint32_t *)USER_SHARED_SPACE_START;
-  } else {
-    stack_allocation =
-        reinterpret_cast<uint32_t *>(kmalloc(DEFAULT_THREAD_STACK_SIZE));
-  }
-
-  assert(reinterpret_cast<uintptr_t>(stack_allocation) % 4 == 0 &&
-         "The stack allocation must be 4 byte aligned.");
+KernelTask::KernelTask(TaskFunc func, void *arg)
+    : Task(GetKernelPageDirectory()),
+      stack_allocation_(
+          reinterpret_cast<uint32_t *>(kmalloc(DEFAULT_THREAD_STACK_SIZE))) {
+  // Setup the initial stack which will be used when jumping into this task for
+  // the first time.
   uint32_t *stack_bottom = getStackPointer();
-
-  // When we are inside the task function, the top of the stack will have the
-  // task_exit (representing the return address), followed by the first
-  // argument passed to the task. Once we hit the end of the task function,
-  // we will `ret` into the task_exit function.
   *(--stack_bottom) = reinterpret_cast<uint32_t>(arg);
-  if (user) {
-    // FIXME: This might not be needed if user tasks should just end up calling
-    // the task exit syscall.
-    *(--stack_bottom) = reinterpret_cast<uint32_t>(syscall_exit_user_task);
-  } else {
-    *(--stack_bottom) = reinterpret_cast<uint32_t>(task_exit);
-  }
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(exit_this_task);
 
-  // When this as loaded as the new stack pointer, the `ret` instruction at the
-  // end of `switch_task` will instead jump to this function.
-  if (user) {
-    auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
-    *(--stack_bottom) =
-        UINT32_C(kUserDataSegment);  // User data segment | ring 3
-    *(--stack_bottom) = current_stack_bottom;
-    getRegs().ds = kUserDataSegment;
-  } else {
-    getRegs().ds = kKernelDataSegment;
-  }
+  getRegs().ds = kKernelDataSegment;
 
   *(--stack_bottom) = UINT32_C(0x202);  // Interrupts enabled
 
-  if (user) {
-    *(--stack_bottom) =
-        UINT32_C(kUserCodeSegment);  // User code segment | ring 3
-    getRegs().cs = kUserCodeSegment;
+  *(--stack_bottom) = UINT32_C(kKernelCodeSegment);  // Kernel code segment
+  getRegs().cs = kKernelCodeSegment;
 
-    *(--stack_bottom) = USER_START;
-  } else {
-    *(--stack_bottom) = UINT32_C(kKernelCodeSegment);  // Kernel code segment
-    getRegs().cs = kKernelCodeSegment;
-
-    *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
-  }
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(func);
 
   getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
+  // End setting up the stack.
 
-  if (user) {
-    esp0_allocation = toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE);
-    userfunc_ = func;
+  AddToQueue();
+}
 
-    // We don't need to access the stack anymore after this.
-    GetKernelPageDirectory().RemovePage((void *)USER_SHARED_SPACE_START);
-  }
+UserTask::UserTask(TaskFunc func, size_t codesize, void *arg)
+    : Task(*GetKernelPageDirectory().Clone()),
+      esp0_allocation_(toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE)),
+      userfunc_(func),
+      usercode_size_(codesize) {
+  void *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
 
-  assert(ReadyQueue && "Scheduling has not yet been initialized.");
+  void *user_shared = (void *)USER_SHARED_SPACE_START;
 
-  // Create a new list item for the new task.
+  // Allocate the shared user space.
+  assert(!getPageDirectory().isVirtualMapped(user_shared) &&
+         "The page directory for this user task should not have previously "
+         "reserves the shared user space page.");
+  getPageDirectory().AddPage((void *)USER_SHARED_SPACE_START, paddr, PG_USER);
+
+  // Temporarily use the same physical address for this page directory. Writes
+  // to this will also be written to the shared space in the user PD.
+  GetKernelPageDirectory().AddPage(user_shared, paddr, /*flags=*/0,
+                                   /*allow_physical_reuse=*/true);
+  memcpy((void *)(USER_SHARED_SPACE_END - sizeof(void *)), &arg,
+         sizeof(void *));
+
+  // Setup the initial stack which will be used when jumping into this task for
+  // the first time.
+  uint32_t *stack_bottom = getStackPointer();
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(arg);
+
+  // FIXME: This might not be needed if user tasks should just end up calling
+  // the task exit syscall.
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(syscall_exit_user_task);
+
+  auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
+  *(--stack_bottom) = UINT32_C(kUserDataSegment);  // User data segment | ring 3
+  *(--stack_bottom) = current_stack_bottom;
+  getRegs().ds = kUserDataSegment;
+
+  *(--stack_bottom) = UINT32_C(0x202);  // Interrupts enabled
+
+  *(--stack_bottom) = UINT32_C(kUserCodeSegment);  // User code segment | ring 3
+  getRegs().cs = kUserCodeSegment;
+
+  *(--stack_bottom) = USER_START;
+
+  getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
+  // End setting up the stack.
+
+  // We don't need to access the stack anymore after this.
+  GetKernelPageDirectory().RemovePage((void *)USER_SHARED_SPACE_START);
+
+  AddToQueue();
+}
+
+void Task::AddToQueue() {
   TaskNode *item = toy::kmalloc<TaskNode>(1);
   item->task = this;
   item->next = ReadyQueue;
   ReadyQueue = item;
 }
 
-// RVO guarantees that the destructor will not be called multiple times for
-// these functions that return and create tasks.
-Task Task::CreateUserTask(TaskFunc func, size_t codesize, void *arg) {
-  assert(codesize <= kPageSize4M &&
-         "Need to allocate more than 4MB for usercode.");
-
-  Task t(func, arg, /*user=*/true);
-  assert(codesize && "Expected a non-zero size for user code");
-  t.usercode_size_ = codesize;
-  return t;
-}
-
-Task Task::CreateKernelTask(TaskFunc func, void *arg) {
-  return Task(func, arg, /*user=*/false);
-}
-
-Task::~Task() {
+KernelTask::~KernelTask() {
   if (this != GetMainKernelTask()) Join();
-  if (isUserTask()) pd_allocation.ReclaimPageDirRegion();
-  if (isKernelTask()) kfree(stack_allocation);
-  if (isUserTask()) kfree(esp0_allocation);
+  kfree(stack_allocation_);
+}
+
+UserTask::~UserTask() {
+  if (this != GetMainKernelTask()) Join();
+  getPageDirectory().ReclaimPageDirRegion();
+  kfree(esp0_allocation_);
 }
 
 void Task::Join() {
   while (this->state_ != COMPLETED) {}
 }
 
-void task_exit() {
+void exit_this_task() {
   DisableInterrupts();
 
   CurrentTask->state_ = COMPLETED;
@@ -171,8 +149,6 @@ void task_exit() {
   schedule(nullptr);
   PANIC("Should have jumped to the next task");
 }
-
-void exit_this_task() { task_exit(); }
 
 const Task *GetMainKernelTask() { return kMainKernelTask; }
 
@@ -186,7 +162,7 @@ extern "C" void switch_user_task_run(Task::X86TaskRegs *);
 void InitScheduler() {
   assert(!ReadyQueue && !CurrentTask && !kMainKernelTask &&
          "This function should not be called twice.");
-  CurrentTask = new Task;
+  CurrentTask = new KernelTask();
   kMainKernelTask = CurrentTask;
 
   ReadyQueue = toy::kmalloc<TaskNode>(1);
@@ -253,21 +229,10 @@ void schedule(const X86Registers *regs) {
     CurrentTask->getRegs().es = static_cast<uint16_t>(regs->ds);
     CurrentTask->getRegs().fs = static_cast<uint16_t>(regs->ds);
     CurrentTask->getRegs().gs = static_cast<uint16_t>(regs->ds);
-  }
-
-  bool first_task_run = task->first_run_;
-  task->first_run_ = false;
-  bool jump_to_user = task->isUserTask();
-
-  assert(
-      (first_task_run || task->getRegs().eip) &&
-      "Expected either for this to be the first time this task is run or to "
-      "have been switched from prior, and eip would point to a valid address.");
-
-  if (!regs) {
+  } else {
     assert(CurrentTask != kMainKernelTask);
 
-    // Delete the current task since we got here from a task_exit.
+    // Delete the current task since we got here from a task exit.
     // Find the node.
     TaskNode *node = ReadyQueue;
     TaskNode *prev = nullptr;
@@ -289,27 +254,18 @@ void schedule(const X86Registers *regs) {
     CurrentTask = nullptr;
   }
 
-  if (jump_to_user)
-    set_kernel_stack(reinterpret_cast<uint32_t>(task->getEsp0StackPointer()));
-
   SwitchPageDirectory(task->getPageDirectory());
 
-  if (first_task_run && jump_to_user) {
-    // This will be the first instance this user task should run. In this case,
-    // we should copy the code into its own address space.
-    // FIXME: We skip the first 4MB because we could still need to read
-    // stuff that multiboot inserted in the first 4MB page. Starting from 0
-    // here could lead to overwriting that multiboot data. We should
-    // probably copy that data somewhere else after paging is enabled.
-    task->getPageDirectory().AddPage(
-        (void *)USER_START,
-        GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1), PG_USER);
-    memcpy(reinterpret_cast<void *>(USER_START),
-           reinterpret_cast<void *>(task->userfunc_), task->usercode_size_);
+  task->SetupBeforeTaskRun();
 
-    uint32_t *stack = (uint32_t *)task->getRegs().esp;
-    assert(*stack == USER_START);
-  }
+  bool first_task_run = task->OnFirstRun();
+  task->state_ = RUNNING;
+  bool jump_to_user = task->isUserTask();
+
+  assert(
+      (first_task_run || task->getRegs().eip) &&
+      "Expected either for this to be the first time this task is run or to "
+      "have been switched from prior, and eip would point to a valid address.");
 
   Task::X86TaskRegs *task_regs = &task->getRegs();
 
@@ -325,6 +281,27 @@ void schedule(const X86Registers *regs) {
     switch_kernel_task_run(task_regs);
   }
   PANIC("Should've switched to a different task");
+}
+
+void UserTask::SetupBeforeTaskRun() {
+  set_kernel_stack(reinterpret_cast<uint32_t>(getEsp0StackPointer()));
+
+  if (OnFirstRun()) {
+    // This will be the first instance this user task should run. In this case,
+    // we should copy the code into its own address space.
+    // FIXME: We skip the first 4MB because we could still need to read
+    // stuff that multiboot inserted in the first 4MB page. Starting from 0
+    // here could lead to overwriting that multiboot data. We should
+    // probably copy that data somewhere else after paging is enabled.
+    getPageDirectory().AddPage(
+        (void *)USER_START,
+        GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1), PG_USER);
+    memcpy(reinterpret_cast<void *>(USER_START),
+           reinterpret_cast<void *>(userfunc_), usercode_size_);
+
+    uint32_t *stack = reinterpret_cast<uint32_t *>(getRegs().esp);
+    assert(*stack == USER_START);
+  }
 }
 
 void DestroyScheduler() {

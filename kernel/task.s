@@ -44,7 +44,7 @@
 
 .macro SWAP_TASKS
   // Set the new task passed as an argument as the current task.
-  movl 4(%esp),%eax         // Get the new task as the 1st arg (task_t *)
+  movl 4(%esp),%eax  // Get the task registers as the 1st arg (Task::X86TaskRegs *)
 
   // Set the registers pased off values stored in the new task.
   movl 0(%eax),%esp

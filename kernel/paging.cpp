@@ -54,7 +54,7 @@ void HandlePageFault(X86Registers *regs) {
 
   stacktrace::PrintStackTrace();
 
-  PANIC("Page fault!");
+  LOOP_INDEFINITELY();
 }
 
 // This is used for keeping track of which page directories are occupied in the

@@ -1,5 +1,5 @@
-#ifndef TASK_H_
-#define TASK_H_
+#ifndef KTASK_H_
+#define KTASK_H_
 
 #include <assert.h>
 #include <isr.h>
@@ -11,6 +11,7 @@
 #define DEFAULT_THREAD_STACK_SIZE 2048  // Use a 2kB kernel stack.
 
 enum TaskState {
+  READY,      // The task has not started yet, but is on the queue and can run.
   RUNNING,    // The task is running.
   COMPLETED,  // The task finished running.
 };
@@ -28,15 +29,12 @@ constexpr uint32_t kUserDataSegment = 0x23;
 constexpr uint32_t kKernelCodeSegment = 0x08;
 constexpr uint32_t kUserCodeSegment = 0x1b;
 
+class KernelTask;
+class UserTask;
+
 class Task {
- private:
-  Task(TaskFunc func, void *arg, bool user = false);
-
  public:
-  static Task CreateKernelTask(TaskFunc func, void *arg);
-  static Task CreateUserTask(TaskFunc func, size_t codesize, void *arg);
-
-  ~Task();
+  virtual ~Task() {}
 
   // NOTE: These values are assigned in task.s. Be sure to update that file if
   // these are ever changed.
@@ -71,26 +69,97 @@ class Task {
   X86TaskRegs &getRegs() { return regs_; }
   uint32_t getID() const { return id_; }
 
-  PageDirectory &getPageDirectory() const { return pd_allocation; }
+  PageDirectory &getPageDirectory() const { return pd_allocation_; }
 
-  bool isUserTask() const { return user_; }
+  // The child class should define this.
+  virtual bool isUserTask() const = 0;
   bool isKernelTask() const { return !isUserTask(); }
 
   uint32_t *getStackPointer() const {
+    uint32_t *stack_bottom = getStackPointerImpl();
+    assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
+           "The user stack is not 4 byte aligned.");
+    return stack_bottom;
+  }
+
+  void Join();
+
+  // Indicates to the scheduler that when this task is about to run, that it
+  // will be the first time this task runs ever.
+  bool OnFirstRun() const { return state_ == READY; }
+
+  // This will be run right before the context switch into the next task.
+  virtual void SetupBeforeTaskRun() {}
+
+ protected:
+  virtual uint32_t *getStackPointerImpl() const = 0;
+
+  // This is used specifically by InitScheduler() for initializing the default
+  // kernel task without needing to set anything on the default stack.
+  Task();
+  Task(PageDirectory &pd_allocation);
+
+  void AddToQueue();
+
+ private:
+  friend void exit_this_task();
+  friend void schedule(const X86Registers *);
+
+  const uint32_t id_;  // Task ID.
+
+  // This is volatile so we can access it each time in Join().
+  volatile TaskState state_;
+
+  X86TaskRegs regs_;
+
+  PageDirectory &pd_allocation_;
+};
+
+class KernelTask : public Task {
+ public:
+  KernelTask(TaskFunc func, void *arg = nullptr);
+  ~KernelTask();
+
+  bool isUserTask() const override { return false; }
+
+ protected:
+  uint32_t *getStackPointerImpl() const override {
     assert(this != GetMainKernelTask() &&
            "Should not need to call this method on the main task since we do "
            "not allocate a stack for it.");
-    assert(stack_allocation);
+    assert(stack_allocation_);
 
-    if (isKernelTask()) {
-      auto *header = MallocHeader::FromPointer(stack_allocation);
-      auto *stack_bottom = reinterpret_cast<uint32_t *>(header->getEnd());
-      assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
-             "The user stack is not 4 byte aligned.");
-      return stack_bottom;
-    } else {
-      return (uint32_t *)USER_SHARED_SPACE_END;
-    }
+    auto *header = MallocHeader::FromPointer(stack_allocation_);
+    return reinterpret_cast<uint32_t *>(header->getEnd());
+  }
+
+ private:
+  friend void InitScheduler();
+
+  // This is used for making the main kernel task.
+  KernelTask();
+
+  // These should be null for the main kernel task.
+  uint32_t *stack_allocation_;
+};
+
+class UserTask : public Task {
+ public:
+  UserTask(TaskFunc func, size_t codesize, void *arg = nullptr);
+  ~UserTask();
+
+  bool isUserTask() const override { return true; }
+
+  void SetupBeforeTaskRun() override;
+
+  TaskFunc getUserFunc() const {
+    assert(userfunc_);
+    return userfunc_;
+  }
+
+  size_t getCodeSize() const {
+    assert(usercode_size_);
+    return usercode_size_;
   }
 
   /**
@@ -98,42 +167,24 @@ class Task {
    * interrupt. Each task must have its own allocated esp0 stack.
    */
   uint32_t *getEsp0StackPointer() const {
-    assert(isUserTask() && "Should not need esp0 for a kernel task");
-    assert(esp0_allocation);
-    auto *header = MallocHeader::FromPointer(esp0_allocation);
+    assert(esp0_allocation_);
+    auto *header = MallocHeader::FromPointer(esp0_allocation_);
     uint32_t *stack_bottom = reinterpret_cast<uint32_t *>(header->getEnd());
     assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
            "The esp0 stack is not 4 byte aligned.");
     return stack_bottom;
   }
 
-  void Join();
+ protected:
+  uint32_t *getStackPointerImpl() const override {
+    return reinterpret_cast<uint32_t *>(USER_SHARED_SPACE_END);
+  }
 
  private:
-  friend void InitScheduler();
-  friend void task_exit();
-  friend void schedule(const X86Registers *);
-
-  // This is used specifically by InitScheduler() for initializing the default
-  // kernel task without needing to set anything on the default stack.
-  Task();
-
-  const uint32_t id_;  // Task ID.
-
-  // This is volatile so we can access it each time in Join().
-  volatile TaskState state_;
-  bool first_run_;
-  bool user_;
-
-  X86TaskRegs regs_;
-
-  // These should be null for the main kernel task.
-  uint32_t *stack_allocation = nullptr;
-  uint8_t *esp0_allocation = nullptr;
-  PageDirectory &pd_allocation;
+  uint8_t *esp0_allocation_;
 
   // Used for loading external user programs.
-  TaskFunc userfunc_ = nullptr;
+  TaskFunc userfunc_;
   size_t usercode_size_;
 };
 

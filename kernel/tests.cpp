@@ -326,8 +326,8 @@ TEST(SimpleTasks) {
   uint32_t val = 0;
   uint32_t val2 = 0;
   volatile uint32_t val3 = 0;
-  Task t = Task::CreateKernelTask(func, &val);
-  Task t2 = Task::CreateKernelTask(func2, &val2);
+  KernelTask t(func, &val);
+  KernelTask t2(func2, &val2);
 
   for (int i = 0; i < 300; ++i) ++val3;
 
@@ -348,7 +348,7 @@ void func3(void *arg) {
 
 TEST(TaskExit) {
   uint32_t x = 10;
-  Task t = Task::CreateKernelTask(func3, &x);
+  KernelTask t(func3, &x);
 
   t.Join();
   ASSERT_EQ(x, 11);
@@ -360,8 +360,8 @@ TEST(JoinOnDestructor) {
   volatile uint32_t val3 = 0;
 
   {
-    Task t = Task::CreateKernelTask(func, &val);
-    Task t2 = Task::CreateKernelTask(func2, &val2);
+    KernelTask t(func, &val);
+    KernelTask t2(func2, &val2);
     for (int i = 0; i < 300; ++i) ++val3;
   }
 
@@ -459,7 +459,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Task t = Task::CreateKernelTask(PageFaultTaskFunc, &x);
+    KernelTask t(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
@@ -473,7 +473,7 @@ TEST(PageFault) {
     x.val = 0;
     RegNum = 0;
 
-    Task t = Task::CreateKernelTask(PageFaultTaskFunc, &x);
+    KernelTask t(PageFaultTaskFunc, &x);
     t.Join();
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
