@@ -4,6 +4,7 @@
 
 #include <io.h>
 #include <isr.h>
+#include <kernel.h>
 #include <ktask.h>
 #include <paging.h>
 #include <panic.h>

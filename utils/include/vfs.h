@@ -5,8 +5,8 @@
 // the kernel and user applications can share this for reading off the initial
 // ramdisk.
 
+#include <BitVector.h>
 #include <assert.h>
-#include <bitvector.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -47,7 +47,7 @@ struct Node {
   void Dump() const;
 
  private:
-  void DumpImpl(toy::BitVector &last) const;
+  void DumpImpl(utils::BitVector &last) const;
 };
 
 struct File : public Node {

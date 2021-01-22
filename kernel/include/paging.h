@@ -2,7 +2,7 @@
 #define PAGING_H_
 
 #include <BitArray.h>
-#include <kernel.h>
+#include <MathUtils.h>
 #include <panic.h>
 #include <stdint.h>
 
@@ -162,7 +162,7 @@ class PhysicalBitmap4M : public toy::BitArray<kRamAs4MPages> {
   // FIXME: Should this be atomic?
   uint16_t refs_[kRamAs4MPages];
   static_assert(
-      ipow2<uint32_t>(sizeof(*refs_) * CHAR_BIT) >= kRamAs4MPages,
+      utils::ipow2<uint32_t>(sizeof(*refs_) * CHAR_BIT) >= kRamAs4MPages,
       "Expected to fit at least one reference for each possible 4MB page.");
 };
 

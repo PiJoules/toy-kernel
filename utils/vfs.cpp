@@ -1,4 +1,5 @@
-#include <kmalloc.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <type_traits.h>
 #include <vfs.h>
@@ -68,26 +69,26 @@ const Directory &Node::AsDir() const {
 }
 
 void Node::Dump() const {
-  toy::BitVector last;
+  utils::BitVector last;
   DumpImpl(last);
 }
 
-void Node::DumpImpl(toy::BitVector &last) const {
+void Node::DumpImpl(utils::BitVector &last) const {
   if (!last.empty()) {
     for (size_t i = 0; i < last.size() - 1; ++i) {
       if (last.get(i))
-        DebugPrint("   ");
+        printf("   ");
       else
-        DebugPrint("|  ");
+        printf("|  ");
     }
 
     if (last.getBack())
-      DebugPrint("`--");
+      printf("`--");
     else
-      DebugPrint("|--");
+      printf("|--");
   }
 
-  DebugPrint("{}\n", header.name);
+  printf("%s\n", header.name);
 
   if (header.isFile() || AsDir().files.empty()) return;
 

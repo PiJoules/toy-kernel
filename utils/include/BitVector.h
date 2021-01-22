@@ -1,12 +1,12 @@
 #ifndef BITVECTOR_H_
 #define BITVECTOR_H_
 
+#include <MathUtils.h>
 #include <assert.h>
-#include <kernel.h>
-#include <kmalloc.h>
+#include <stdlib.h>
 #include <string.h>
 
-namespace toy {
+namespace utils {
 
 class BitVector {
  public:
@@ -14,7 +14,7 @@ class BitVector {
   BitVector() : BitVector(0) {}
 
   ~BitVector() {
-    if (onHeap()) kfree(reinterpret_cast<void *>(buffer_));
+    if (onHeap()) free(reinterpret_cast<void *>(buffer_));
   }
 
   void push_back(bool x) {
@@ -106,7 +106,7 @@ class BitVector {
 
   void Init() {
     if (onHeap()) {
-      buffer_ = reinterpret_cast<uintptr_t>(::kmalloc(capacity_));
+      buffer_ = reinterpret_cast<uintptr_t>(malloc(capacity_));
     } else {
       buffer_ = 0;
     }
@@ -125,16 +125,16 @@ class BitVector {
         assert(onHeap() &&
                "Cannot have been on the heap but then come off the heap");
         buffer_ = reinterpret_cast<uintptr_t>(
-            ::krealloc(reinterpret_cast<void *>(buffer_), capacity_));
+            realloc(reinterpret_cast<void *>(buffer_), capacity_));
       } else if (onHeap()) {
         auto val = buffer_;
-        buffer_ = reinterpret_cast<uintptr_t>(::kmalloc(capacity_));
+        buffer_ = reinterpret_cast<uintptr_t>(malloc(capacity_));
         memcpy(BufferPtr(), &val, sizeof(val));
       }
     }
   }
 };
 
-}  // namespace toy
+}  // namespace utils
 
 #endif

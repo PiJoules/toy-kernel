@@ -1,0 +1,34 @@
+#ifndef CSTDLIB_H_
+#define CSTDLIB_H_
+
+#include <stdlib.h>
+
+namespace std {
+
+using ::malloc;
+using ::free;
+
+namespace ext {
+
+// Allocate enough space for a given number of elements of a given type (T), and
+// return a T*. The value is aligned to any fundamental type.
+template <typename T>
+T *malloc(size_t num_elems) {
+  return reinterpret_cast<T *>(::malloc(num_elems * sizeof(T)));
+}
+
+template <typename T>
+T *realloc(T *ptr, size_t num_elems) {
+  return reinterpret_cast<T *>(::realloc(ptr, num_elems * sizeof(T)));
+}
+
+template <typename T>
+T *calloc(size_t num_elems) {
+  return reinterpret_cast<T *>(::calloc(num_elems, sizeof(T)));
+}
+
+}  // namespace ext
+
+}  // namespace std
+
+#endif

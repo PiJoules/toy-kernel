@@ -1,9 +1,11 @@
 #include <isr.h>
+#include <kernel.h>
 #include <ktask.h>
-#include <new.h>
 #include <paging.h>
 #include <print.h>
 #include <stacktrace.h>
+
+#include <new>
 
 namespace {
 

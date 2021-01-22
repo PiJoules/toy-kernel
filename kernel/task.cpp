@@ -66,7 +66,8 @@ KernelTask::KernelTask(TaskFunc func, void *arg)
   AddToQueue();
 }
 
-UserTask::UserTask(TaskFunc func, size_t codesize, void *arg)
+UserTask::UserTask(TaskFunc func, size_t codesize, void *arg,
+                   CopyArgFunc copyfunc)
     : Task(*GetKernelPageDirectory().Clone()),
       esp0_allocation_(toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE)),
       userfunc_(func),
@@ -85,13 +86,13 @@ UserTask::UserTask(TaskFunc func, size_t codesize, void *arg)
   // to this will also be written to the shared space in the user PD.
   GetKernelPageDirectory().AddPage(user_shared, paddr, /*flags=*/0,
                                    /*allow_physical_reuse=*/true);
-  memcpy((void *)(USER_SHARED_SPACE_END - sizeof(void *)), &arg,
-         sizeof(void *));
+  void *stack_arg = copyfunc(arg, (void *)USER_SHARED_SPACE_START,
+                             (void *)USER_SHARED_SPACE_END);
 
   // Setup the initial stack which will be used when jumping into this task for
   // the first time.
   uint32_t *stack_bottom = getStackPointer();
-  *(--stack_bottom) = reinterpret_cast<uint32_t>(arg);
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(stack_arg);
 
   // FIXME: This might not be needed if user tasks should just end up calling
   // the task exit syscall.

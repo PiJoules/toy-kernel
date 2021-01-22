@@ -1,6 +1,7 @@
 #ifndef KTASK_H_
 #define KTASK_H_
 
+#include <allocator.h>
 #include <assert.h>
 #include <isr.h>
 #include <kmalloc.h>
@@ -129,7 +130,7 @@ class KernelTask : public Task {
            "not allocate a stack for it.");
     assert(stack_allocation_);
 
-    auto *header = MallocHeader::FromPointer(stack_allocation_);
+    auto *header = utils::MallocHeader::FromPointer(stack_allocation_);
     return reinterpret_cast<uint32_t *>(header->getEnd());
   }
 
@@ -145,7 +146,27 @@ class KernelTask : public Task {
 
 class UserTask : public Task {
  public:
-  UserTask(TaskFunc func, size_t codesize, void *arg = nullptr);
+  // When copying an argument to the shared user region, we can provide this
+  // function to the UserTask constructor to control how to copy the argument
+  // into the shared region. `arg` is the argument, `dst_start` is the start of
+  // the region the argument can be copied to (USER_SHARED_SPACE_START),
+  // and `dst_end` is the end of the region (USER_SHARED_SPACE_END).
+  //
+  // Also return a pointer representing the value to be added to the stack.
+  //
+  // FIXME: It's very possible for arguments here to be overwritten by stuff we
+  // add to the stack. We should make it so that `dst_end` actually points
+  // bellow the lowest point this stack can get during setup.
+  using CopyArgFunc = void *(*)(void *arg, void *dst_start, void *dst_end);
+
+  static void *CopyArgDefault(void *arg, [[maybe_unused]] void *dst_start,
+                              void *dst_end) {
+    memcpy((uint8_t *)dst_end - sizeof(arg), &arg, sizeof(arg));
+    return arg;
+  }
+
+  UserTask(TaskFunc func, size_t codesize, void *arg = nullptr,
+           CopyArgFunc copyfunc = CopyArgDefault);
   ~UserTask();
 
   bool isUserTask() const override { return true; }
@@ -168,7 +189,7 @@ class UserTask : public Task {
    */
   uint32_t *getEsp0StackPointer() const {
     assert(esp0_allocation_);
-    auto *header = MallocHeader::FromPointer(esp0_allocation_);
+    auto *header = utils::MallocHeader::FromPointer(esp0_allocation_);
     uint32_t *stack_bottom = reinterpret_cast<uint32_t *>(header->getEnd());
     assert(reinterpret_cast<uintptr_t>(stack_bottom) % 4 == 0 &&
            "The esp0 stack is not 4 byte aligned.");

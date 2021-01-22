@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <umalloc.h>
+#include <vfs.h>
+
+#include <new>
 
 extern bool __use_debug_log;
 
@@ -44,12 +48,34 @@ void DumpCommands() {
 
 }  // namespace
 
+extern "C" uint8_t heap_bottom, heap_top;
+
 extern "C" int __user_main(void *arg) {
   __use_debug_log = true;
 
   // This is the dummy argument we expect from the kernel.
   printf("arg: %p\n", arg);
-  assert((uint32_t)arg == 0xfeed);
+  size_t vfs_size;
+  memcpy(&vfs_size, arg, sizeof(vfs_size));
+  printf("vfs size: %u\n", vfs_size);
+  uint8_t *vfs_data = (uint8_t *)arg + sizeof(vfs_size);
+  printf("vfs start: %p\n", vfs_data);
+
+  printf("heap_bottom: %p\n", &heap_bottom);
+  printf("heap_top: %p\n", &heap_top);
+
+  size_t heap_space = &heap_top - &heap_bottom;
+  printf("heap space: %u\n", heap_space);
+  assert(heap_space > vfs_size &&
+         "The heap allocation is not large enough to hold the vfs. More space "
+         "should be allocated for bootstrapping.");
+
+  user::InitializeUserHeap();
+  std::unique_ptr<vfs::Directory> vfs;
+  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_size);
+
+  printf("vfs:\n");
+  vfs->Dump();
 
   printf("\nWelcome! Type \"help\" for commands\n");
 

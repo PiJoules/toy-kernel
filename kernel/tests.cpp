@@ -1,27 +1,29 @@
+#include <BitVector.h>
+#include <allocator.h>
 #include <assert.h>
-#include <bitvector.h>
 #include <function_traits.h>
 #include <isr.h>
 #include <iterable.h>
 #include <kmalloc.h>
 #include <ktask.h>
-#include <new.h>
 #include <print.h>
 #include <string.h>
 #include <tests.h>
 
 #include <initializer_list>
 #include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
 namespace {
 
-using toy::BitVector;
+using utils::BitVector;
+using utils::MallocHeader;
 
 TEST(IntegerPower) {
   for (uint32_t p = 0, expected = 1; p < 31; ++p, expected <<= 1) {
-    ASSERT_EQ(ipow2<uint32_t>(p), expected);
+    ASSERT_EQ(utils::ipow2<uint32_t>(p), expected);
   }
 }
 
@@ -148,7 +150,7 @@ TEST(MinAllocation) {
 
 TEST(MoreThanMinAllocation) {
   size_t heap_used = GetKernelHeapUsed();
-  size_t size = kMallocMinSize * 2;
+  size_t size = utils::kMallocMinSize * 2;
   auto *str = static_cast<char *>(kmalloc(sizeof(char) * size));
 
   // We get the amount we request + the malloc header.
@@ -162,7 +164,7 @@ TEST(MoreThanMinAllocation) {
 }
 
 TEST(MultipleAllocations) {
-  size_t size = kMallocMinSize;
+  size_t size = utils::kMallocMinSize;
   size_t heap_used = GetKernelHeapUsed();
   void *buf1 = kmalloc(size);
   ASSERT_EQ(GetKernelHeapUsed(), heap_used + (size + sizeof(MallocHeader)));

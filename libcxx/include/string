@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <string.h>
 #include <vector>
+#include <cstdlib>
 
 namespace std {
 
@@ -20,17 +21,17 @@ class string {
   string()
       : size_(0),
         capacity_(kDefaultCapacity),
-        data_(toy::kcalloc<char>(capacity_)) {
+        data_(ext::calloc<char>(capacity_)) {
     memset(data_, 0, capacity_);
   }
   string(const char *s, size_t init_capacity = kDefaultCapacity)
       : size_(strlen(s)),
         capacity_(std::max(init_capacity, size_ + 1)),
-        data_(toy::kcalloc<char>(capacity_)) {
+        data_(ext::calloc<char>(capacity_)) {
     memcpy(data_, s, size_);
   }
 
-  ~string() { kfree(data_); }
+  ~string() { free(data_); }
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
@@ -41,7 +42,7 @@ class string {
       // Resize.
       capacity_ <<= 1;
       assert(capacity_ >= size_ && "Not enough capacity after push_back");
-      data_ = toy::krealloc<char>(data_, capacity_);
+      data_ = ext::realloc<char>(data_, capacity_);
       assert(data_ && "Could not request more storage");
       memset(&data_[size_], 0, capacity_ - size_);
     }

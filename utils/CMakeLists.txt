@@ -6,8 +6,10 @@ enable_language(CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(COMMON_SRCS
+  allocator.cpp
   builtins.cpp
-  print.cpp)
+  print.cpp
+  vfs.cpp)
 
 # FIXME: We should not assume the directory is adjascent to this one.
 set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)

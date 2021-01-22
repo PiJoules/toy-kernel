@@ -4,8 +4,8 @@
 #include <initializer_list>
 #include <iterator.h>
 #include <algorithm>
-#include <kmalloc.h>
-#include <new.h>
+#include <cstdlib>
+#include <new>
 
 /**
  * Naive header-only vector implementation.
@@ -21,7 +21,7 @@ class vector {
   static_assert(InitCapacity > 0,
                 "The initial vector capacity should be non-zero.");
   vector()
-      : size_(0), capacity_(InitCapacity), data_(toy::kmalloc<T>(capacity_)) {}
+      : size_(0), capacity_(InitCapacity), data_(ext::malloc<T>(capacity_)) {}
 
   /**
    * This is undefined if [start, end) is invalid.
@@ -29,7 +29,7 @@ class vector {
   vector(const T *start, const T *end)
       : size_(end - start),
         capacity_(std::max(InitCapacity, size_)),
-        data_(toy::kmalloc<T>(capacity_)) {
+        data_(ext::malloc<T>(capacity_)) {
     assert(start <= end && "Invalid pointer range");
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(start[i]); }
   }
@@ -37,21 +37,21 @@ class vector {
   vector(toy::InitializerList<T> l)
       : size_(l.size()),
         capacity_(std::max(InitCapacity, size_)),
-        data_(toy::kmalloc<T>(capacity_)) {
+        data_(ext::malloc<T>(capacity_)) {
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(l[i]); }
   }
 
   vector(const vector<T> &other)
       : size_(other.size()),
         capacity_(max(InitCapacity, other.size_)),
-        data_(toy::kmalloc<T>(capacity_)) {
+        data_(ext::malloc<T>(capacity_)) {
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(other[i]); }
   }
 
   vector(vector<T> &&other)
       : size_(other.size_),
         capacity_(other.capacity_),
-        data_(toy::kmalloc<T>(capacity_)) {
+        data_(ext::malloc<T>(capacity_)) {
     for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(std::move(other[i])); }
 
     // After the move, `other` is guaranteed to be empty().
@@ -60,7 +60,7 @@ class vector {
 
   ~vector() {
     for (size_t i = 0; i < size_; ++i) { data_[i].~T(); }
-    kfree(data_);
+    free(data_);
   }
 
   size_t size() const { return size_; }
@@ -93,7 +93,7 @@ class vector {
       // Resize.
       capacity_ <<= 1;
       assert(capacity_ >= size_ && "Not enough capacity after push_back");
-      data_ = toy::krealloc<T>(data_, capacity_);
+      data_ = ext::realloc<T>(data_, capacity_);
       assert(data_ && "Could not request more storage");
     }
   }

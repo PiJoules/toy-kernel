@@ -9,7 +9,12 @@
 #include <_syscalls.h>
 #endif
 
+#ifdef KERNEL
+// Use serial by default if in kernel space.
+bool __use_debug_log = true;
+#else
 bool __use_debug_log = false;
+#endif
 
 // FIXME: We will be printing characters with serial for now, but should really
 // implement a filesystem-like structure for more "standard" printing.

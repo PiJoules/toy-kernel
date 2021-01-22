@@ -23,8 +23,9 @@ namespace {
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
 
-UserTask RunFlatUserBinary(const vfs::Directory &vfs,
-                           const std::string &filename, void *arg = nullptr) {
+UserTask RunFlatUserBinary(
+    const vfs::Directory &vfs, const std::string &filename, void *arg = nullptr,
+    UserTask::CopyArgFunc copyfunc = UserTask::CopyArgDefault) {
   const vfs::Node *program = vfs.getFile(filename);
   assert(program && "Could not find binary");
 
@@ -33,7 +34,7 @@ UserTask RunFlatUserBinary(const vfs::Directory &vfs,
   DebugPrint("{} is {} bytes\n", filename.c_str(), size);
 
   // Actually create and run the user tasks.
-  return UserTask((TaskFunc)file.contents.data(), size, arg);
+  return UserTask((TaskFunc)file.contents.data(), size, arg, copyfunc);
 }
 
 /**
@@ -128,7 +129,10 @@ static void CheckGPFTriggerred(X86Registers *regs) {
  * able to call them from there. Running user tests and loading the vfs should
  * be handled from userspace.
  */
-void KernelLoadPrograms(const vfs::Directory *vfs) {
+void KernelLoadPrograms(uint8_t *vfs_data, size_t vfs_data_size) {
+  std::unique_ptr<vfs::Directory> vfs;
+  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_data_size);
+
   // FIXME: test_user_program.bin is a user binary that is run for checking that
   // user programs have their own address spaces. Ideally, this would be
   // contained in its own test rather than hardcoding it here.
@@ -158,7 +162,37 @@ void KernelLoadPrograms(const vfs::Directory *vfs) {
 
   if (vfs->hasFile("userboot")) {
     DebugPrint("Launching userboot...\n");
-    UserTask userboot = RunFlatUserBinary(*vfs, "userboot", (void *)0xfeed);
+
+    struct VFSData {
+      void *data;
+      size_t size;
+    } vfs_data_struct = {vfs_data, vfs_data_size};
+
+    auto copyfunc = [](void *arg, void *dst_start, void *dst_end) -> void * {
+      // Encode the following:
+      // |.....................| <- dst_end
+      // |.....................|
+      // |.....................| <- vfs data end
+      // |.....................|
+      // |vfs data.............| <- vfs data start
+      // |vfs size             | <- dst_start
+      VFSData *vfs = reinterpret_cast<VFSData *>(arg);
+      uint8_t *start = reinterpret_cast<uint8_t *>(dst_start);
+      uint8_t *end = reinterpret_cast<uint8_t *>(dst_end);
+      size_t space = end - start;
+
+      assert(space >= vfs->size + sizeof(size_t) &&
+             "Not enough space in shared user region to hold the vfs data.");
+
+      memcpy(start, &vfs->size, sizeof(size_t));
+      memcpy(start + sizeof(size_t), vfs->data, vfs->size);
+      DebugPrint("Copied {} bytes to {}\n", vfs->size, start + sizeof(size_t));
+
+      return start;
+    };
+
+    UserTask userboot =
+        RunFlatUserBinary(*vfs, "userboot", &vfs_data_struct, copyfunc);
     userboot.Join();
   }
 }
@@ -205,11 +239,9 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   if (num_mods) {
     DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
 
-    std::unique_ptr<vfs::Directory> vfs;
-    vfs = vfs::ParseVFS(mod_start, mod_end);
-    kfree(mod_start);
+    KernelLoadPrograms(mod_start, mod_end - mod_start);
 
-    KernelLoadPrograms(vfs.get());
+    kfree(mod_start);
   } else {
     DebugPrint(
         "\n\nNOTE: Could not find the initial ramdisk (initrd). If this is "

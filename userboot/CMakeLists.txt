@@ -36,6 +36,8 @@ set(USER_COMPILE_FLAGS
   -nostartfiles
   -nodefaultlibs
   -g
+  -fno-exceptions
+  -fno-rtti
   -ftrivial-auto-var-init=pattern)
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
@@ -54,6 +56,11 @@ set(BUILD_USER_LIBC 1)
 add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libc_build)
 
 # FIXME: We should not assume the directory is adjascent to this one.
+set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
+set(BUILD_USER_LIBCXX 1)
+add_subdirectory(${LIBCXX_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libcxx_build)
+
+# FIXME: We should not assume the directory is adjascent to this one.
 set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
 set(BUILD_USER_UTILS 1)
 add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_utils_build)
@@ -68,7 +75,10 @@ function(make_flat_user_binary name)
   add_library(${libname} STATIC "${ARGN}")
   target_compile_options(${libname}
     PRIVATE ${USER_COMPILE_FLAGS})
+  target_include_directories(${libname} PRIVATE include/)
   target_include_directories(${libname} PRIVATE ${LIBC_PROJECT_DIR}/include/)
+  target_include_directories(${libname} PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+  target_include_directories(${libname} PRIVATE ${UTILS_PROJECT_DIR}/include/)
 
   add_custom_target(${name} ALL
     COMMAND ${CMAKE_LINKER} -T ${CMAKE_CURRENT_SOURCE_DIR}/user_link.ld -m elf_i386
@@ -81,12 +91,13 @@ function(make_flat_user_binary name)
 
             --no-whole-archive
             $<TARGET_FILE:user_libc>
+            $<TARGET_FILE:user_libcxx>
             $<TARGET_FILE:user_utils>
 
             --end-group
 
     COMMENT "Compiling ${name}"
-    DEPENDS bootstrap_lib ${libname} user_libc
+    DEPENDS bootstrap_lib ${libname} user_libc user_libcxx
     VERBATIM)
 endfunction()
 
@@ -99,7 +110,7 @@ make_flat_user_binary(test_user_io_privilege test_user_io_privilege.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 
 # Userboot containing a basic shell.
-make_flat_user_binary(userboot userboot.cpp)
+make_flat_user_binary(userboot userboot.cpp umalloc.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
