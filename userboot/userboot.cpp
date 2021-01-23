@@ -72,8 +72,10 @@ extern "C" int __user_main(void *arg) {
 
   user::InitializeUserHeap();
   std::unique_ptr<vfs::Directory> vfs;
-  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_size);
+  uint32_t entry_offset;
+  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_size, entry_offset);
 
+  printf("entry point offset: %u\n", entry_offset);
   printf("vfs:\n");
   vfs->Dump();
 

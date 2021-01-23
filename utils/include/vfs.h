@@ -72,7 +72,25 @@ struct Directory : public Node {
 /**
  * Parse a Directory from a raw pointer.
  */
-std::unique_ptr<Directory> ParseVFS(uint8_t *bytes, uint8_t *bytes_end);
+std::unique_ptr<Directory> ParseVFS(uint8_t *bytes, uint8_t *bytes_end,
+                                    uint32_t &entry_offset);
+
+/**
+ * Get the filename and size of the entry point file from raw vfs data.
+ */
+inline uint8_t *GetEntryFilenameSize(uint8_t *vfs_data, char *&filename,
+                                     uint32_t &size) {
+  // The entry point filename is 68 bytes before the start of the entry point
+  // file (64 bytes for the name length + 4 bytes for size of file).
+  uint32_t entry_offset;
+  memcpy(&entry_offset, vfs_data, sizeof(entry_offset));
+
+  // The entry point size is 4 bytes before the start of the entry point file.
+  memcpy(&size, vfs_data + entry_offset - 4, sizeof(uint32_t));
+
+  filename = reinterpret_cast<char *>(vfs_data) + entry_offset - 68;
+  return vfs_data + entry_offset;
+}
 
 }  // namespace vfs
 

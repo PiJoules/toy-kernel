@@ -10,6 +10,7 @@ namespace {
 
 template <typename T>
 T ReadAndAdvance(uint8_t *&ptr) {
+  // NOTE: This assumes the endianness matches that of the host system.
   T x;
   memcpy(&x, ptr, sizeof(T));
   ptr += sizeof(T);
@@ -113,7 +114,10 @@ Directory::Directory(uint32_t id, const char name[kFilenameSize],
                      std::vector<std::unique_ptr<Node>> &files)
     : Node(id, /*isfile=*/false, name), files(std::move(files)) {}
 
-std::unique_ptr<Directory> ParseVFS(uint8_t *bytes_begin, uint8_t *bytes_end) {
+std::unique_ptr<Directory> ParseVFS(uint8_t *bytes_begin, uint8_t *bytes_end,
+                                    uint32_t &entry_offset) {
+  entry_offset = ReadAndAdvance<uint32_t>(bytes_begin);
+
   std::vector<std::unique_ptr<Node>> nodes;
   while (bytes_begin < bytes_end) {
     nodes.push_back(ParseOneNode(bytes_begin));

@@ -1,27 +1,41 @@
 #!/usr/bin/env python3
 
 # Script for making the initial ram disk in a virtual filesystem format
-# recognized by the kernel. This is a custom vfs format. The vfs format is a
+# recognized by the kernel. This is a custom initrd format. The format is a
 # flat sequence of "files". Each file has the following layout:
 #
 #   Bits        Size  Description
 #
-#   [0, 32)     32    FileID; This can be any random unique 4-byte integer; Also
+#   [0, 32)     32    Offset to the user entry point in this file. When jumping
+#                     from kernel to userspace, we need some address that
+#                     indicates where we should jump to. This can be indicated
+#                     by this offset which is always at the start of the initrd
+#                     file.
+#
+#                     This must point to a file's contents.
+#
+#                     FIXME: It's technically possible for the vfs component to
+#                     contain no files and be empty. We should handle this case.
+#
+#     File descriptor bits (header/start of the vfs):
+#
+#   [32, 64)    32    FileID; This can be any random unique 4-byte integer; Also
 #                     implies there can be no more than 2^32 files in the vfs
-#   [32, 33)    1     0 => Directory, 1 => File
-#   [33, 64)    31    Reserved (for other flags that we may want to add)
-#   [64, 576)   512   Filename (max 64 1-byte characters)
+#   [64, 65)    1     0 => Directory, 1 => File
+#   [65, 96)    31    Reserved (for other flags that we may want to add)
+#   [96, 608)   512   Filename (max 64 1-byte characters). If the name doesn't
+#                     fill the whole length, it is padded with zeros.
 #
-#   If this node is a file:
+#       If this node is a file:
 #
-#   [576, 608)  32    Content size; Also implies the maximum file size is 4GB
-#   [608, ...)  0+    Contents
+#   [608, 640)  32    Content size; Also implies the maximum file size is 4GB
+#   [640, ...)  0+    Contents
 #
-#   Otherwise if this node is a directory:
+#       Otherwise if this node is a directory:
 #
-#   [576, 608)  32    Number of files; Also implies the maximum number of files in
+#   [608, 640)  32    Number of files; Also implies the maximum number of files in
 #                     a directory is 2^32
-#   [608, ...)  0+    Sequence of files/directories that are in this directory.
+#   [640, ...)  0+    Sequence of files/directories that are in this directory.
 #
 # NOTE: This layout is subject to change and not set in stone.
 # TODO: Add some sort of magic number field for error checking?
@@ -34,30 +48,13 @@ import os
 import struct
 
 
-def parse_args():
-  from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-
-  parser = ArgumentParser(description="Script for making the initial ram disk",
-                          formatter_class=ArgumentDefaultsHelpFormatter)
-
-  parser.add_argument(
-      "root",
-      help="Directory that will act as the root of the virtual filesystem.")
-  parser.add_argument("-o",
-                      "--output",
-                      default="initrd.vfs",
-                      help="Output vfs file.")
-  parser.add_argument("-d",
-                      "--dump",
-                      action="store_true",
-                      help="Dump a vfs file passed as `root`")
-
-  return parser.parse_args()
-
-
 class Node:
   UNIQUE_ID = 0
   FILENAME_LEN = 64
+
+  # We have a test to check this. If the header ever changes in length, this
+  # should also be modified.
+  HEADER_LEN = 72
 
   def __init__(self, isdir, name):
     self.id = Node.UNIQUE_ID
@@ -72,6 +69,8 @@ class Node:
         name)
 
   def _header_bytes(self):
+    # FIXME: Packing depends on the host endianness. We should just exclusively
+    # use little-endian.
     bytes = b""
 
     # FileID
@@ -112,10 +111,10 @@ class Node:
     bytes = bytes[4:]
 
     if not isfile:
-      files = set()
+      files = []
       for i in range(size):
         file, bytes = cls._parse_one_file(bytes)
-        files.add(file)
+        files.append(file)
       return Directory(name, files), bytes
     else:
       contents = struct.unpack(str(size) + "s", bytes[:size])[0]
@@ -124,11 +123,11 @@ class Node:
 
   @classmethod
   def from_bytes(cls, bytes):
-    files = set()
+    files = []
 
     while bytes:
       file, bytes = cls._parse_one_file(bytes)
-      files.add(file)
+      files.append(file)
 
     return Directory("<root>", files)
 
@@ -153,6 +152,11 @@ class File(Node):
     return (self._header_bytes() + struct.pack("I", size) +
             struct.pack(str(size) + "s", self.contents))
 
+  def offset_to_file_contents(self):
+    # The offset to the contents is just the size of the header + the size of
+    # the length for the contents.
+    return Node.HEADER_LEN + 4
+
   @staticmethod
   def from_file(fullpath):
     assert os.path.isfile(fullpath)
@@ -161,11 +165,36 @@ class File(Node):
     return File(os.path.basename(fullpath), bytes)
 
 
+def split_path(filepath):
+  # Split a path into "parts".
+  # "a/b/c.txt" -> ["a", "b", "c.txt"]
+  # "a/" -> ["a"]
+  # "a" -> ["a"]
+  filepath = filepath.strip()
+  assert filepath, "File path is an empty string"
+  assert not os.path.isabs(filepath)
+
+  parts = []
+  head = filepath
+  while True:
+    head, tail = os.path.split(head)
+
+    # `tail` can be an empty string if `head` ends with a path separator.
+    if tail:
+      parts.append(tail)
+
+    if not head:
+      break
+
+  assert parts, "Found no pathlets?"
+  return parts[::-1]
+
+
 class Directory(Node):
 
   def __init__(self, name, files=None):
     super().__init__(True, name)
-    self.files = files or set()
+    self.files = files or []
 
   def bytes(self):
     b = b""
@@ -197,6 +226,41 @@ class Directory(Node):
         return f
     raise Exception(
         "File '{}' does not exist in this directory".format(filename))
+
+  def vfs_offset_to_file_contents(self, filepath):
+    """Get the offset to the file contents of a given file path, relative to the start of the vfs directory."""
+
+    return self.offset_to_file_contents(filepath) - Node.HEADER_LEN - 4
+
+  def offset_to_file_contents(self, filepath):
+    """Get the offset to the file contents of a given file path, relative to the start of this current directory."""
+    # Add current header size.
+    offset = Node.HEADER_LEN
+
+    # Add 4 bytes for the number of files.
+    offset += 4
+
+    pathlets = split_path(filepath)
+    filename = pathlets[0]
+    assert self.has(filename), "This directory does not have file '{}'".format(
+        filename)
+
+    for file in self.files:
+      if file.name == filename:
+        if len(pathlets) == 1:
+          # Found the file!
+          offset += file.offset_to_file_contents()
+        else:
+          # This is a directory. We will recursively add more to the offset.
+          # FIXME: We don't need to constantly split and join here. We can just
+          # get the highest directory.
+          offset += file.offset_to_file_contents(os.path.join(pathlets[1:]))
+        break
+
+      # Add size of this mismatching file or directory.
+      offset += len(file.bytes())
+
+    return offset
 
   @staticmethod
   def from_dir(fullpath):
@@ -246,18 +310,69 @@ class Dumper:
     self.dump(dircontents[-1], last + [True])
 
 
+def dir_to_initrd(dirname, entry, out_file):
+  assert os.path.isdir(dirname), "Directory doesn't exist"
+  assert os.path.isfile(os.path.join(
+      dirname, entry)), "File does not exists relative to directory"
+
+  vfs = Directory.from_dir(dirname)
+  offset = vfs.vfs_offset_to_file_contents(entry)
+
+  # Add the size of this offset.
+  offset += 4
+
+  b = struct.pack("I", offset)
+
+  out_file.write(b + vfs.vfs_bytes())
+
+
+def parse_args():
+  from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+  parser = ArgumentParser(description="Script for making the initial ram disk",
+                          formatter_class=ArgumentDefaultsHelpFormatter)
+
+  parser.add_argument(
+      "root",
+      help="Directory that will act as the root of the virtual filesystem.")
+  parser.add_argument(
+      "-e",
+      "--entry",
+      help="Path relative to root that indicates the entry file point.")
+  parser.add_argument("-o",
+                      "--output",
+                      default="initrd.vfs",
+                      help="Output vfs file.")
+  parser.add_argument("-d",
+                      "--dump",
+                      action="store_true",
+                      help="Dump a vfs file passed as `root`")
+
+  return parser.parse_args()
+
+
 def main():
   args = parse_args()
 
   if args.dump:
     with open(args.root, "rb") as f:
-      dir = Node.from_bytes(f.read())
+      bytes = f.read()
+
+      assert len(bytes) >= 4
+      offset = struct.unpack("I", bytes[:4])[0]
+
+      # The name of the file is 68 bytes before the content start.
+      name = bytes[offset - 68:offset - 4].decode()
+
+      bytes = bytes[4:]
+      dir = Node.from_bytes(bytes)
+
+    print("offset to entry {} ({})".format(offset, name))
     Dumper().dump(dir)
     return 0
 
   with open(args.output, "wb") as out:
-    d = Directory.from_dir(args.root)
-    out.write(d.vfs_bytes())
+    dir_to_initrd(args.root, args.entry, out)
 
   return 0
 
@@ -268,16 +383,29 @@ import unittest
 class TestVFS(unittest.TestCase):
   """Test the VFS format."""
 
+  def test_split_path(self):
+    """Test that paths are split into parts as expected."""
+    self.assertEqual(split_path("a/b/c"), ["a", "b", "c"])
+    self.assertEqual(split_path("a/b"), ["a", "b"])
+    self.assertEqual(split_path("a/b/"), ["a", "b"])
+    self.assertEqual(split_path("a//"), ["a"])
+    self.assertEqual(split_path("a/"), ["a"])
+    self.assertEqual(split_path("a"), ["a"])
+
+  def test_header_bytes_length(self):
+    d = Directory.from_dir("tests/emptydir")
+    self.assertEqual(len(d._header_bytes()), Node.HEADER_LEN)
+
   def test_empty_dir(self):
     """Test an empty directory."""
     d = Directory.from_dir("tests/emptydir")
-    self.assertEqual(d.files, set())
+    self.assertEqual(d.files, [])
     self.assertTrue(d.isdir)
     self.assertEqual(d.vfs_bytes(), b"")
 
     d2 = Node.from_bytes(d.vfs_bytes())
     self.assertTrue(d2.isdir)
-    self.assertEqual(d2.files, set())
+    self.assertEqual(d2.files, [])
     self.assertEqual(d2.vfs_bytes(), b"")
 
   def test_file(self):
@@ -298,18 +426,30 @@ class TestVFS(unittest.TestCase):
     self.assertEqual(f.name, "file.txt")
     self.assertEqual(f.contents, b"abcd\n")
 
+    offset = d.offset_to_file_contents("file.txt")
+    self.assertEqual(d.bytes()[offset:offset + 5], b"abcd\n")
+
+    vfs_offset = d.vfs_offset_to_file_contents("file.txt")
+    self.assertEqual(d.vfs_bytes()[vfs_offset:vfs_offset + 5], b"abcd\n")
+
   def test_nested_files(self):
     """Test a slightly more complex directory structure."""
     d = Directory.from_dir("tests/nested")
     self.assertEqual(len(d.files), 3)
 
-    self.assertEqual(d.get("file").contents, b"")
-    self.assertEqual(d.get("nested2").files, set())
+    self.assertEqual(d.get("file").contents, b"abcd\n")
+    self.assertEqual(d.get("nested2").files, [])
+
+    vfs_offset = d.vfs_offset_to_file_contents("file")
+    self.assertEqual(d.vfs_bytes()[vfs_offset:vfs_offset + 5], b"abcd\n")
 
     d2 = d.get("nested")
     self.assertEqual(len(d2.files), 2)
-    self.assertEqual(d2.get("file").contents, b"")
+    self.assertEqual(d2.get("file").contents, b"efgh\n")
     self.assertNotEqual(d2.get("file"), d.get("file"))
+
+    vfs_offset = d2.vfs_offset_to_file_contents("file")
+    self.assertEqual(d2.vfs_bytes()[vfs_offset:vfs_offset + 5], b"efgh\n")
 
     d3 = d2.get("nested3")
     self.assertEqual(len(d3.files), 1)

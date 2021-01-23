@@ -128,6 +128,7 @@ add_custom_target(${INITRD}
   COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
   COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f initrd/ ; done"
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
+          --entry userboot
   COMMAND /bin/sh -c "if ${SHOULD_COPY_INITRD}; then cp initrd.vfs ${INITRD_DST_DIR}/; fi"
 
   COMMENT "Create the initial ramdisk with '${USER_PROGRAMS}'"

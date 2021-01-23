@@ -131,7 +131,16 @@ static void CheckGPFTriggerred(X86Registers *regs) {
  */
 void KernelLoadPrograms(uint8_t *vfs_data, size_t vfs_data_size) {
   std::unique_ptr<vfs::Directory> vfs;
-  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_data_size);
+  uint32_t entry_offset;
+  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_data_size, entry_offset);
+  DebugPrint("vfs entry point offset: {}\n", entry_offset);
+
+  uint32_t codesize;
+  char *name;
+  uint8_t *entry = vfs::GetEntryFilenameSize(vfs_data, name, codesize);
+  DebugPrint("entry point: {}\n", entry);
+  DebugPrint("entry point file: {}\n", name);
+  DebugPrint("entry point file size:{}\n", codesize);
 
   // FIXME: test_user_program.bin is a user binary that is run for checking that
   // user programs have their own address spaces. Ideally, this would be
@@ -159,42 +168,47 @@ void KernelLoadPrograms(uint8_t *vfs_data, size_t vfs_data_size) {
         "userspace!\n");
     RegisterInterruptHandler(kGeneralProtectionFault, old_handler);
   }
+}
 
-  if (vfs->hasFile("userboot")) {
-    DebugPrint("Launching userboot...\n");
+void KernelJumpToUserEntry(uint8_t *vfs_data, size_t vfs_data_size) {
+  DebugPrint("Jumping to userspace via entry point in intrd...\n");
 
-    struct VFSData {
-      void *data;
-      size_t size;
-    } vfs_data_struct = {vfs_data, vfs_data_size};
+  uint32_t codesize;
+  char *name;
+  uint8_t *entry = vfs::GetEntryFilenameSize(vfs_data, name, codesize);
+  DebugPrint("entry point file: {}\n", name);
+  DebugPrint("entry point file size: {}\n", codesize);
 
-    auto copyfunc = [](void *arg, void *dst_start, void *dst_end) -> void * {
-      // Encode the following:
-      // |.....................| <- dst_end
-      // |.....................|
-      // |.....................| <- vfs data end
-      // |.....................|
-      // |vfs data.............| <- vfs data start
-      // |vfs size             | <- dst_start
-      VFSData *vfs = reinterpret_cast<VFSData *>(arg);
-      uint8_t *start = reinterpret_cast<uint8_t *>(dst_start);
-      uint8_t *end = reinterpret_cast<uint8_t *>(dst_end);
-      size_t space = end - start;
+  struct VFSData {
+    void *data;
+    size_t size;
+  } vfs_data_struct = {vfs_data, vfs_data_size};
 
-      assert(space >= vfs->size + sizeof(size_t) &&
-             "Not enough space in shared user region to hold the vfs data.");
+  auto copyfunc = [](void *arg, void *dst_start, void *dst_end) -> void * {
+    // Encode the following:
+    // |.....................| <- dst_end
+    // |.....................|
+    // |.....................| <- vfs data end
+    // |.....................|
+    // |vfs data.............| <- vfs data start
+    // |vfs size             | <- dst_start
+    VFSData *vfs = reinterpret_cast<VFSData *>(arg);
+    uint8_t *start = reinterpret_cast<uint8_t *>(dst_start);
+    uint8_t *end = reinterpret_cast<uint8_t *>(dst_end);
+    size_t space = end - start;
 
-      memcpy(start, &vfs->size, sizeof(size_t));
-      memcpy(start + sizeof(size_t), vfs->data, vfs->size);
-      DebugPrint("Copied {} bytes to {}\n", vfs->size, start + sizeof(size_t));
+    assert(space >= vfs->size + sizeof(size_t) &&
+           "Not enough space in shared user region to hold the vfs data.");
 
-      return start;
-    };
+    memcpy(start, &vfs->size, sizeof(size_t));
+    memcpy(start + sizeof(size_t), vfs->data, vfs->size);
+    DebugPrint("Copied {} bytes to {}\n", vfs->size, start + sizeof(size_t));
 
-    UserTask userboot =
-        RunFlatUserBinary(*vfs, "userboot", &vfs_data_struct, copyfunc);
-    userboot.Join();
-  }
+    return start;
+  };
+
+  UserTask entrytask((TaskFunc)entry, codesize, &vfs_data_struct, copyfunc);
+  entrytask.Join();
 }
 
 void KernelEnd() {
@@ -240,6 +254,7 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
     DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
 
     KernelLoadPrograms(mod_start, mod_end - mod_start);
+    KernelJumpToUserEntry(mod_start, mod_end - mod_start);
 
     kfree(mod_start);
   } else {
