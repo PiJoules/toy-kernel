@@ -8,6 +8,10 @@ inline void Write8(uint16_t port, uint8_t value) {
   asm volatile("outb %1, %0" : : "dN"(port), "a"(value));
 }
 
+inline void Write16(uint16_t port, uint16_t value) {
+  asm volatile("outw %1, %0" : : "dN"(port), "a"(value));
+}
+
 inline uint8_t Read8(uint16_t port) {
   uint8_t ret;
   asm volatile("inb %1, %0" : "=a"(ret) : "dN"(port));

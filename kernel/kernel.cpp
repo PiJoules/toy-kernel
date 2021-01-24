@@ -219,10 +219,10 @@ void KernelEnd() {
   assert(GetKernelHeapUsed() == 0 && "Kernel heap was not cleared!");
 
   DebugPrint("Reached end of kernel.\n");
-  while (1) {
-    char c = serial::AtomicRead();
-    serial::AtomicPut(c);
-  }
+
+  // Note this will only work on QEMU according to
+  // https://wiki.osdev.org/Shutdown.
+  Write16(0x604, 0x2000);
 }
 
 }  // namespace
