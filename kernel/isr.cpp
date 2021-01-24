@@ -92,6 +92,9 @@ void isr_handler(X86Registers *regs) {
   if (isr_t handler = interrupt_handlers[regs->int_no]) return handler(regs);
 
   DumpRegisters(regs);
+
+  if (GetCurrentTask() && GetCurrentTask()->isUserTask()) exit_this_task();
+
   PANIC("Unhandled interrupt!");
 }
 

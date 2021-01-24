@@ -978,7 +978,6 @@ TEST(TupleTest) {
 
 TEST_SUITE(TupleSuite) { RUN_TEST(TupleTest); }
 
-
 }  // namespace
 
 void RunTests() {

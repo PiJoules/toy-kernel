@@ -5,9 +5,9 @@
 #include <string.h>
 #include <umalloc.h>
 #include <vfs.h>
-#include <tuple>
 
 #include <new>
+#include <tuple>
 
 extern bool __use_debug_log;
 
@@ -49,14 +49,13 @@ bool TriggerInvalidOpcodeException() {
 using CmdInfo = std::tuple<const char *, const char *, bool (*)()>;
 
 bool DumpCommands();
-bool Shutdown() {
-  return true;
-}
+bool Shutdown() { return true; }
 
 constexpr CmdInfo kCmds[] = {
-  {"help", "Dump commands.", DumpCommands},
-  {"shutdown", "Exit userboot.", Shutdown},
-  {"invalid-opcode", "Trigger an invalid opcode exception", TriggerInvalidOpcodeException},
+    {"help", "Dump commands.", DumpCommands},
+    {"shutdown", "Exit userboot.", Shutdown},
+    {"invalid-opcode", "Trigger an invalid opcode exception",
+     TriggerInvalidOpcodeException},
 };
 constexpr size_t kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
 
@@ -119,8 +118,7 @@ extern "C" int __user_main(void *arg) {
     printf("shell> ");
     DebugRead(buffer);
 
-    if (ShouldShutdown(buffer))
-      break;
+    if (ShouldShutdown(buffer)) break;
   }
 
   return 0;
