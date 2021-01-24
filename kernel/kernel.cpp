@@ -117,9 +117,9 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
   DebugPrint("Kernel setup complete.\n");
 }
 
-static void CheckGPFTriggerred(X86Registers *regs) {
+void CheckGPFTriggerred(X86Registers *regs) {
   assert(regs->int_no == kGeneralProtectionFault);
-  exit_this_task();
+  exit_this_task(0);
 }
 
 /**

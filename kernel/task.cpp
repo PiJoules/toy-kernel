@@ -41,6 +41,15 @@ Task::Task(PageDirectory &pd_allocation)
   assert(ReadyQueue && "Scheduling has not yet been initialized.");
 }
 
+// This function will be called once a kernel task exits its function. The
+// return value for the function will be stored in eax according to the System V
+// i386 ABI.
+static void HandleKernelTaskExit() {
+  TaskRet retcode;
+  asm volatile("mov %%al, %0" : "=r"(retcode));
+  exit_this_task(retcode);
+}
+
 KernelTask::KernelTask(TaskFunc func, void *arg)
     : Task(GetKernelPageDirectory()),
       stack_allocation_(
@@ -48,8 +57,11 @@ KernelTask::KernelTask(TaskFunc func, void *arg)
   // Setup the initial stack which will be used when jumping into this task for
   // the first time.
   uint32_t *stack_bottom = getStackPointer();
+
   *(--stack_bottom) = reinterpret_cast<uint32_t>(arg);
-  *(--stack_bottom) = reinterpret_cast<uint32_t>(exit_this_task);
+  *(--stack_bottom) = reinterpret_cast<uint32_t>(HandleKernelTaskExit);
+  // When we jump to the task function, `HandleKernelTaskExit` will be the
+  // return address and `arg` will be the first argument on the stack.
 
   getRegs().ds = kKernelDataSegment;
 
@@ -137,14 +149,16 @@ UserTask::~UserTask() {
   kfree(esp0_allocation_);
 }
 
-void Task::Join() {
+TaskRet Task::Join() {
   while (this->state_ != COMPLETED) {}
+  return retcode_;
 }
 
-void exit_this_task() {
+void exit_this_task(int8_t retcode) {
   DisableInterrupts();
 
   CurrentTask->state_ = COMPLETED;
+  CurrentTask->retcode_ = retcode;
 
   // Remove this task then switch to another.
   schedule(nullptr);

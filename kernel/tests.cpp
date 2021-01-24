@@ -302,19 +302,21 @@ TEST(CallocTest) {
 
 TEST_SUITE(Calloc) { RUN_TEST(CallocTest); }
 
-void func(void *arg) {
+TaskRet func(void *arg) {
   // Ensure that we increment x 100 times instead of just adding 100.
   volatile auto *x = static_cast<uint32_t *>(arg);
   assert(reinterpret_cast<uintptr_t>(x) % 4 == 0 &&
          "Received misaligned pointer");
   for (int i = 0; i < 100; ++i) ++(*x);
+  return 1;
 }
 
-void func2(void *arg) {
+TaskRet func2(void *arg) {
   volatile auto *x = static_cast<uint32_t *>(arg);
   assert(reinterpret_cast<uintptr_t>(x) % 4 == 0 &&
          "Received misaligned pointer");
   for (int i = 0; i < 200; ++i) ++(*x);
+  return 2;
 }
 
 TEST(TaskIDs) {
@@ -333,26 +335,31 @@ TEST(SimpleTasks) {
 
   for (int i = 0; i < 300; ++i) ++val3;
 
-  t.Join();
-  t2.Join();
+  ASSERT_EQ(t.Join(), 1);
+  ASSERT_EQ(t2.Join(), 2);
+
+  // We can safely call these again since the task finished.
+  ASSERT_EQ(t.Join(), 1);
+  ASSERT_EQ(t2.Join(), 2);
 
   ASSERT_EQ(val, 100);
   ASSERT_EQ(val2, 200);
   ASSERT_EQ(val3, 300);
 }
 
-void func3(void *arg) {
+int8_t func3(void *arg) {
   volatile auto *x = static_cast<uint32_t *>(arg);
   ++(*x);
-  exit_this_task();
+  exit_this_task(3);
   ++(*x);
+  return 4;
 }
 
 TEST(TaskExit) {
   uint32_t x = 10;
   KernelTask t(func3, &x);
 
-  t.Join();
+  ASSERT_EQ(t.Join(), 3);
   ASSERT_EQ(x, 11);
 }
 
@@ -429,7 +436,7 @@ void PageFaultHandler(X86Registers *regs) {
 
   // Exit here or we will go back to the instruction that caused the page fault,
   // infinitely jumping back to this function.
-  exit_this_task();
+  exit_this_task(11);
 }
 
 struct PageFaultData {
@@ -437,7 +444,7 @@ struct PageFaultData {
   uint32_t addr;
 };
 
-void PageFaultTaskFunc(void *arg) {
+int8_t PageFaultTaskFunc(void *arg) {
   auto *x = static_cast<PageFaultData *>(arg);
   x->val = 9;
 
@@ -447,6 +454,7 @@ void PageFaultTaskFunc(void *arg) {
 
   // Should not reach this.
   x->val = 10;
+  return 10;
 }
 
 TEST(PageFault) {
@@ -462,7 +470,7 @@ TEST(PageFault) {
     RegNum = 0;
 
     KernelTask t(PageFaultTaskFunc, &x);
-    t.Join();
+    ASSERT_EQ(t.Join(), 11);
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
     ASSERT_EQ(x.val, 9);
@@ -476,7 +484,7 @@ TEST(PageFault) {
     RegNum = 0;
 
     KernelTask t(PageFaultTaskFunc, &x);
-    t.Join();
+    ASSERT_EQ(t.Join(), 11);
 
     ASSERT_EQ(RegNum, kPageFaultInterrupt);
     ASSERT_EQ(x.val, 9);
@@ -968,6 +976,16 @@ TEST(BitVectorTest) {
 
 TEST_SUITE(BitVectorSuite) { RUN_TEST(BitVectorTest); }
 
+TEST(TupleTest) {
+  std::tuple<int, char, short> t = {1, 2, 3};
+  static_assert(std::tuple_size<decltype(t)>::value == 3);
+  ASSERT_EQ(std::get<0>(t), 1);
+  ASSERT_EQ(std::get<1>(t), 2);
+  ASSERT_EQ(std::get<2>(t), 3);
+}
+
+TEST_SUITE(TupleSuite) { RUN_TEST(TupleTest); }
+
 }  // namespace
 
 void RunTests() {
@@ -988,4 +1006,5 @@ void RunTests() {
   tests.RunSuite(Iterators);
   tests.RunSuite(TypeTraits);
   tests.RunSuite(BitVectorSuite);
+  tests.RunSuite(TupleSuite);
 }

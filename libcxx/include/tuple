@@ -3,18 +3,46 @@
 
 namespace std {
 
-template <typename First, typename... Rest>
-struct tuple : public tuple<Rest...> {
-  tuple(First first, Rest... rest) : tuple<Rest...>(rest...), first(first) {}
+template <size_t CurIdx, typename First, typename... Rest>
+class tuple_impl : public tuple_impl<CurIdx, First>,
+                   public tuple_impl<CurIdx + 1, Rest...> {
+ public:
+  constexpr tuple_impl(First first, Rest... rest)
+    : tuple_impl<CurIdx, First>(first),
+      tuple_impl<CurIdx + 1, Rest...>(rest...), first(first) {}
 
+  First &getFirst() { return first; }
+  const First &getFirst() const { return first; }
+
+  static constexpr size_t size = sizeof...(Rest) + 1;
+  static constexpr size_t index = CurIdx;
+
+ private:
   First first;
 };
 
-template <typename First>
-struct tuple<First> {
-  tuple(First first) : first(first) {}
+template <size_t CurIdx, typename First>
+class tuple_impl<CurIdx, First> {
+ public:
+  constexpr tuple_impl(First first) : first(first) {}
 
+  First &getFirst() { return first; }
+  const First &getFirst() const { return first; }
+
+ private:
   First first;
+};
+
+template <typename First, typename... Rest>
+class tuple : public tuple_impl<0, First, Rest...> {
+ public:
+  constexpr tuple(First first, Rest... rest)
+    : tuple_impl<0, First, Rest...>(first, rest...) {}
+};
+
+template <typename T>
+struct tuple_size {
+  static constexpr size_t value = T::size;
 };
 
 template <size_t I, class T>
@@ -30,6 +58,19 @@ template <class Head, class... Tail>
 struct tuple_element<0, tuple<Head, Tail...>> {
   typedef Head type;
 };
+
+template <size_t I, typename... Types>
+auto &get(tuple<Types...>& t) {
+  using ElemTy = typename tuple_element<I, tuple<Types...>>::type;
+  return static_cast<tuple_impl<I, ElemTy> &>(t).getFirst();
+}
+
+template <size_t I, typename... Types>
+const auto &get(const tuple<Types...>& t) {
+  using ElemTy = typename tuple_element<I, tuple<Types...>>::type;
+  return static_cast<const tuple_impl<I, ElemTy> &>(t).getFirst();
+}
+
 
 }  // namespace std
 

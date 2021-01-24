@@ -43,7 +43,7 @@ int32_t debug_write(const char *str) {
 }
 
 int32_t exit_user_task() {
-  exit_this_task();
+  exit_this_task(0);
   return 0;
 }
 

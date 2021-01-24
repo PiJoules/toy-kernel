@@ -7,6 +7,7 @@
 #include <vfs.h>
 
 #include <new>
+#include <tuple>
 
 extern bool __use_debug_log;
 
@@ -40,10 +41,28 @@ void DebugRead(char *buffer) {
 
 constexpr size_t kCmdBufferSize = 1024;
 
-void DumpCommands() {
-  printf(
-      "help - Dump commands.\n"
-      "shutdown - Exit userboot.\n");
+bool TriggerInvalidOpcodeException() {
+  asm volatile("ud2\n");
+  return false;
+}
+
+using CmdInfo = std::tuple<const char *, const char *, bool (*)()>;
+
+bool DumpCommands();
+bool Shutdown() { return true; }
+
+constexpr CmdInfo kCmds[] = {
+    {"help", "Dump commands.", DumpCommands},
+    {"shutdown", "Exit userboot.", Shutdown},
+    {"invalid-opcode", "Trigger an invalid opcode exception",
+     TriggerInvalidOpcodeException},
+};
+constexpr size_t kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
+
+bool DumpCommands() {
+  for (size_t i = 0; i < kNumCmds; ++i)
+    printf("%s - %s\n", std::get<0>(kCmds[i]), std::get<1>(kCmds[i]));
+  return false;
 }
 
 }  // namespace
@@ -81,19 +100,25 @@ extern "C" int __user_main(void *arg) {
 
   printf("\nWelcome! Type \"help\" for commands\n");
 
+  auto ShouldShutdown = [](char *buffer) -> bool {
+    for (size_t i = 0; i < kNumCmds; ++i) {
+      const char *name = std::get<0>(kCmds[i]);
+      if (strcmp(buffer, name) == 0) {
+        // Only `shutdown` returns true.
+        return std::get<2>(kCmds[i])();
+      }
+    }
+
+    printf("Unknown command: %s\n", buffer);
+    return false;
+  };
+
   char buffer[kCmdBufferSize];
   while (1) {
     printf("shell> ");
     DebugRead(buffer);
 
-    if (strcmp(buffer, "help") == 0) {
-      DumpCommands();
-    } else if (strcmp(buffer, "shutdown") == 0) {
-      printf("Shutting down...\n");
-      break;
-    } else {
-      printf("Unknown command: %s\n", buffer);
-    }
+    if (ShouldShutdown(buffer)) break;
   }
 
   return 0;
