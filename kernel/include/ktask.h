@@ -22,10 +22,8 @@ class Task;
 const Task *GetMainKernelTask();
 const Task *GetCurrentTask();
 
-using TaskRet = int8_t;
-
 // Accept any argument and return void.
-using TaskFunc = TaskRet (*)(void *);
+using TaskFunc = void (*)(void *);
 
 constexpr uint32_t kKernelDataSegment = 0x10;
 constexpr uint32_t kUserDataSegment = 0x23;
@@ -85,7 +83,7 @@ class Task {
     return stack_bottom;
   }
 
-  TaskRet Join();
+  void Join();
 
   // Indicates to the scheduler that when this task is about to run, that it
   // will be the first time this task runs ever.
@@ -105,7 +103,7 @@ class Task {
   void AddToQueue();
 
  private:
-  friend void exit_this_task(int8_t);
+  friend void exit_this_task();
   friend void schedule(const X86Registers *);
 
   const uint32_t id_;  // Task ID.
@@ -116,7 +114,6 @@ class Task {
   X86TaskRegs regs_;
 
   PageDirectory &pd_allocation_;
-  TaskRet retcode_;
 };
 
 class KernelTask : public Task {
@@ -212,7 +209,7 @@ class UserTask : public Task {
   size_t usercode_size_;
 };
 
-void exit_this_task(int8_t retcode);
+void exit_this_task();
 
 void InitScheduler();
 void schedule(const X86Registers *regs);

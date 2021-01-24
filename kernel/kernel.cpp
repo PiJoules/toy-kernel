@@ -119,7 +119,7 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
 
 void CheckGPFTriggerred(X86Registers *regs) {
   assert(regs->int_no == kGeneralProtectionFault);
-  exit_this_task(0);
+  exit_this_task();
 }
 
 /**
