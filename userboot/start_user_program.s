@@ -22,12 +22,6 @@ heap_top:
 __user_program_entry:
   // ESP points to a page mapped by the kernel to store the initial stack.
   // Here we can access any arguments passed to the user by the kernel.
-  //
-  // FIXME: When enterring a user task for the first time, the first argument
-  // on the stack will actually be the return address for the task exit syscall.
-  // This might not actually be necessary though if we can just call the syscall
-  // directly after finishing the user program.
-  add $4, %esp
 
   // Jump to user-defined main.
   call __user_main

@@ -94,10 +94,6 @@ UserTask::UserTask(TaskFunc func, size_t codesize, void *arg,
   uint32_t *stack_bottom = getStackPointer();
   *(--stack_bottom) = reinterpret_cast<uint32_t>(stack_arg);
 
-  // FIXME: This might not be needed if user tasks should just end up calling
-  // the task exit syscall.
-  *(--stack_bottom) = reinterpret_cast<uint32_t>(syscall_exit_user_task);
-
   auto current_stack_bottom = reinterpret_cast<uint32_t>(stack_bottom);
   *(--stack_bottom) = UINT32_C(kUserDataSegment);  // User data segment | ring 3
   *(--stack_bottom) = current_stack_bottom;
