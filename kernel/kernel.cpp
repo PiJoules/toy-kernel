@@ -1,17 +1,17 @@
-#include <DescriptorTables.h>
-#include <Multiboot.h>
-#include <Timer.h>
 #include <assert.h>
+#include <descriptortables.h>
 #include <io.h>
 #include <kernel.h>
 #include <keyboard.h>
 #include <kmalloc.h>
 #include <ktask.h>
+#include <multiboot.h>
 #include <paging.h>
 #include <panic.h>
 #include <serial.h>
 #include <syscall.h>
 #include <tests.h>
+#include <timer.h>
 #include <vfs.h>
 
 using print::Hex;

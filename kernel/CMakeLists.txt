@@ -4,16 +4,23 @@ cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel-kernel)
 enable_language(CXX)
 
-add_library(asm_objs STATIC boot.s gdt.s interrupt.s task.s)
+add_library(asm_objs STATIC boot.S gdt.S interrupt.S task.S)
 target_compile_options(asm_objs
   PRIVATE -target i386)
 
 add_library(cpp_objs STATIC
-  kernel.cpp DescriptorTables.cpp
-  isr.cpp Timer.cpp
-  paging.cpp panic.cpp tests.cpp kmalloc.cpp task.cpp
-  syscall.cpp keyboard.cpp
-  serial.cpp)
+  descriptortables.cpp
+  isr.cpp
+  kernel.cpp
+  keyboard.cpp
+  kmalloc.cpp
+  paging.cpp
+  panic.cpp
+  serial.cpp
+  syscall.cpp
+  task.cpp
+  tests.cpp
+  timer.cpp)
 target_include_directories(cpp_objs PRIVATE include/)
 set(KERNEL_COMPILE_FLAGS
   -target i386

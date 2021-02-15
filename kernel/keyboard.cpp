@@ -18,7 +18,7 @@ namespace {
 enum KeyAction {
   NOACTION = 0,
 #define KEY_ACTION(name, val) name = val,
-#include "KeyActions.def"
+#include "keyactions.def"
 };
 KeyAction PreviousAction = NOACTION;
 

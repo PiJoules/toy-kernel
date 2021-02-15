@@ -1,8 +1,8 @@
 #ifndef PAGING_H_
 #define PAGING_H_
 
-#include <BitArray.h>
 #include <MathUtils.h>
+#include <bitarray.h>
 #include <panic.h>
 #include <stdint.h>
 

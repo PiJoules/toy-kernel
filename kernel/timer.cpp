@@ -1,9 +1,9 @@
-#include <Timer.h>
 #include <io.h>
 #include <isr.h>
 #include <kernel.h>
 #include <ktask.h>
 #include <stdint.h>
+#include <timer.h>
 
 // Ensure a task runs for at least this many ticks before switching.
 constexpr uint32_t kQuanta = 2;

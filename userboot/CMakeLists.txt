@@ -65,7 +65,7 @@ set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
 set(BUILD_USER_UTILS 1)
 add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_utils_build)
 
-add_library(bootstrap_lib STATIC start_user_program.s)
+add_library(bootstrap_lib STATIC start_user_program.S)
 target_compile_options(bootstrap_lib
   PRIVATE -target i386)
 
