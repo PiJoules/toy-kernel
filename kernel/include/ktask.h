@@ -25,14 +25,21 @@ const Task *GetCurrentTask();
 // Accept any argument and return void.
 using TaskFunc = void (*)(void *);
 
-constexpr uint32_t kKernelDataSegment = 0x10;
-constexpr uint32_t kUserDataSegment = 0x23;
-constexpr uint32_t kKernelCodeSegment = 0x08;
-constexpr uint32_t kUserCodeSegment = 0x1b;
+constexpr const uint32_t kKernelDataSegment = 0x10;
+constexpr const uint32_t kUserDataSegment = 0x23;
+constexpr const uint32_t kKernelCodeSegment = 0x08;
+constexpr const uint32_t kUserCodeSegment = 0x1b;
 
 class KernelTask;
 class UserTask;
 
+// A task represents all the info necessary about the current context that we
+// are runnning in. This includes saved registers (when switching from another
+// task), the current page directory/address space, what ring we're in, etc.
+//
+// Note that because we can create other tasks in whatever the current task is,
+// we should take care to limit accesses to that new task's address space only
+// during creation.
 class Task {
  public:
   virtual ~Task() {}
@@ -44,6 +51,8 @@ class Task {
     uint16_t ds, es, fs, gs, cs;  // These must be 16-bit aligned.
 
     // 2-byte Padding
+
+    void Dump() const;
   };
   static_assert(sizeof(X86TaskRegs) == 52,
                 "Size of regs changed! If this is intended, be sure to also "
@@ -88,9 +97,20 @@ class Task {
   // Indicates to the scheduler that when this task is about to run, that it
   // will be the first time this task runs ever.
   bool OnFirstRun() const { return state_ == READY; }
+  bool Finished() const { return state_ == COMPLETED; }
 
   // This will be run right before the context switch into the next task.
   virtual void SetupBeforeTaskRun() {}
+
+  // Copy data from a virtual address in the current task's address space to a
+  // virtual address in this tasks's address space. If the current task is the
+  // same as this task, this just performs a memcpy().
+  void Write(void *this_dst, const void *current_src, size_t size);
+
+  // Copy data from a virtual address in this task's address space to a virtual
+  // address in the current task's address space. If the current task is the
+  // same as this task, this just performs a memcpy().
+  void Read(void *current_dst, const void *this_dst, size_t size);
 
  protected:
   virtual uint32_t *getStackPointerImpl() const = 0;
@@ -112,8 +132,11 @@ class Task {
   volatile TaskState state_;
 
   X86TaskRegs regs_;
-
   PageDirectory &pd_allocation_;
+
+  // FIXME: This is only meaningful for user tasks, not all tasks in general.
+  // This should be removed.
+  bool user_in_kernel_space_;
 };
 
 class KernelTask : public Task {

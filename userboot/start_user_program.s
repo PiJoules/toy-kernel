@@ -13,7 +13,7 @@ stack_top:
   .align 16
 heap_bottom:
 // NOTE: This must be large enough to hold the initial ramdisk.
-  .skip 32768  // 32 KB
+  .skip 65536  // 64 KB
   .global heap_top
 heap_top:
 

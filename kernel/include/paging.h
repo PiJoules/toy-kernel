@@ -14,7 +14,8 @@
 // [4MB   - 8MB)    Kernel
 // [8MB   - 12MB)   Page directory region
 // [12MB  - 16MB)   Shared space with user
-// [16MB  - 20MB)   GFX_MEMORY
+// [16MB  - 20MB)   GFX_MEMORY (To be deprecated)
+// [20MB  - 24MB)   Temporary shared process memory
 // [32MB  - 1GB)    KERNEL_HEAP
 // [1GB   - 4GB)    USER_START; Flat user programs
 #define KERNEL_START 0x400000
@@ -31,8 +32,15 @@
 // TODO: GFX virtual memory (which controls the screen for graphics mode) starts
 // at 16 MB, but we should also clearly mark where it ends.
 // NOTE: The kernel heap starts at 32 MB and ends at 1 GB.
-#define GFX_MEMORY_START 0x01000000      // 16 MB
-#define GFX_MEMORY_END 0x1400000         // 20 MB
+#define GFX_MEMORY_START 0x01000000  // 16 MB
+#define GFX_MEMORY_END 0x1400000     // 20 MB
+
+// For IPCs, tasks can use this region of memory for temporary message passing.
+// After this is used, the task should immediately remove the page mapping to
+// this.
+#define TMP_SHARED_TASK_MEM_START 0x1400000  // 20 MB
+#define TMP_SHARED_TASK_MEM_END 0x1800000    // 24 MB
+
 #define KERN_HEAP_BEGIN 0x02000000       // 32 MB
 #define KERN_HEAP_END 0x40000000         // 1 GB
 #define USER_START UINT32_C(0x40000000)  // 1GB
@@ -64,7 +72,7 @@ constexpr uint32_t kRamAs4KPages =
     0x100000;  // Tofal RAM = 0x100000 x 4 KB = 4 GB
 
 constexpr uint32_t PageIndex4M(uint32_t addr) { return addr >> 22; }
-inline uint32_t PageIndex4M(void *addr) {
+inline uint32_t PageIndex4M(const void *addr) {
   return reinterpret_cast<uint32_t>(addr) >> 22;
 }
 inline void *PageAddr4M(uint32_t page) {
@@ -181,6 +189,7 @@ class PageDirectory {
                bool allow_physical_reuse = false);
 
   void RemovePage(void *vaddr);
+  void *GetPhysicalAddr(const void *vaddr) const;
 
   void Clear() { memset(pd_impl_, 0, sizeof(pd_impl_)); }
 

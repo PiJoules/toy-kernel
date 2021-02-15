@@ -13,7 +13,8 @@ PageDirectory KernelPageDir;
 PhysicalBitmap4M PhysicalBitmap;
 
 void HandlePageFault(X86Registers *regs) {
-  asm volatile("cli");
+  DisableInterrupts();
+
   uint32_t faulting_addr;
   asm volatile("mov %%cr2, %0" : "=r"(faulting_addr));
 
@@ -109,7 +110,17 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K) {
 
   uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
 
-  // Pages reserved for the kernel (4MB - 12MB). These are identity-mapped.
+  // Pages reserved for the kernel (4MB - 12MB). These are identity-mapped. This
+  // means that changes to these virtual addresses will also update changes to
+  // that same physical address. If other page directories clone this and use
+  // the exact same vaddr-paddr mapping, then data written to memory on these
+  // pages will update across all page directories.
+  //
+  // For the kernel page, this means all kernel data across all address spaces
+  // and processes will be updated simultaniously.
+  //
+  // For the page directory region, this means that all address spaces have
+  // knowledge of the page directory mappings of all other page directories.
   KernelPageDir.AddPage(reinterpret_cast<void *>(KERNEL_START),
                         reinterpret_cast<void *>(KERNEL_START), flags);
   KernelPageDir.AddPage(reinterpret_cast<void *>(PAGE_DIRECTORY_REGION_START),
@@ -227,6 +238,22 @@ void PageDirectory::AddPage(void *v_addr, const void *p_addr, uint8_t flags,
       PhysicalBitmap.setPageFrameUsed(PageIndex4M(paddr_int));
     }
   }
+}
+
+void *PageDirectory::GetPhysicalAddr(const void *vaddr) const {
+  uint32_t vaddr_int = reinterpret_cast<uint32_t>(vaddr);
+  assert(vaddr_int % kPageSize4M == 0 &&
+         "Expected the virtual addr to be a multiple of 4MB");
+
+  uint32_t index = PageIndex4M(vaddr_int);
+  const uint32_t &pd_entry = pd_impl_[index];
+  assert((pd_entry & PG_PRESENT) && "Page for virtual address not present");
+
+  uint32_t paddr_int = pd_entry & kPageMask4M;
+  assert(PhysicalBitmap.isPageFrameUsed(PageIndex4M(paddr_int)) &&
+         "The physical page for this virtual address has not been allocated.");
+
+  return reinterpret_cast<void *>(paddr_int);
 }
 
 bool PageDirectory::isPhysicalFree(uint32_t page_index) {

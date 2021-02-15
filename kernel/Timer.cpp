@@ -5,12 +5,12 @@
 #include <ktask.h>
 #include <stdint.h>
 
-uint32_t tick = 0;
-
 // Ensure a task runs for at least this many ticks before switching.
-constexpr uint32_t kQuanta = 10;
+constexpr uint32_t kQuanta = 2;
 
 namespace {
+
+uint32_t tick = 0;
 
 void TimerCallback(X86Registers *regs) {
   ++tick;

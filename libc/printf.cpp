@@ -86,6 +86,11 @@ extern "C" int printf(const char *fmt, ...) {
             print::PrintFormatter(__system_put, p);
             break;
           }
+          case 'x': {
+            unsigned u = va_arg(ap, unsigned);
+            print::PrintFormatter(__system_put, print::Hex(u));
+            break;
+          }
           default:
             __builtin_trap();
         }

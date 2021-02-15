@@ -51,7 +51,7 @@
   movl 4(%eax),%ebp
   // eax is 8(%eax); this should be set before the iret
   movl 12(%eax),%ebx
-  // ecx is briefly used as a temporary register and set near the end of each function.
+  movl 16(%eax),%ecx
   movl 20(%eax),%edx
   movl 24(%eax),%esi
   movl 28(%eax),%edi
@@ -70,46 +70,41 @@
   .global switch_kernel_task_run
 switch_kernel_task_run:
   SWAP_TASKS
-  pushl 32(%eax) // eflags
 
-  mov 48(%eax), %cx  // cs
-  movzx %cx, %ecx
-  push %ecx
-
+  pushl 32(%eax)  // eflags
+  pushl $0x08     // cs
   pushl 36(%eax)  // eip
 
-  mov 16(%eax), %ecx
   mov 8(%eax), %eax
+
   iret
 
   .global switch_first_kernel_task_run
 switch_first_kernel_task_run:
   SWAP_TASKS
-  mov 16(%eax), %ecx
+
   mov 8(%eax), %eax
+
   iret
 
   .global switch_first_user_task_run
 switch_first_user_task_run:
   SWAP_TASKS
-  mov 16(%eax), %ecx
+
   mov 8(%eax), %eax
+
   iret
 
   .globl switch_user_task_run
 switch_user_task_run:
   SWAP_TASKS
-  push %ds  // DS/SS
 
-  pushl 0(%eax)  // esp
-  pushl 32(%eax) // eflags
-
-  mov 48(%eax), %cx
-  movzx %cx, %ecx
-  push %ecx   // cs
-
+  pushl $0x23     // ds/ss
+  pushl 0(%eax)   // esp
+  pushl 32(%eax)  // eflags
+  pushl $0x1b     // cs
   pushl 36(%eax)  // eip
 
-  mov 16(%eax), %ecx
   mov 8(%eax), %eax
+
   iret

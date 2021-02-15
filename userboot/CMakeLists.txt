@@ -113,6 +113,22 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 make_flat_user_binary(userboot userboot.cpp umalloc.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
+# Test elf binary.
+add_executable(test-elf test.c)
+target_compile_options(test-elf
+  PRIVATE -target i386)
+target_link_options(test-elf
+  PRIVATE -target i386-elf
+  PRIVATE -nostdlib
+  PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
+target_link_libraries(test-elf
+  # This is a hack we can use to add custom linker flags.
+  -Wl,--start-group
+  user_libc user_utils
+  -Wl,--end-group)
+target_include_directories(test-elf PRIVATE ${LIBC_PROJECT_DIR}/include/)
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test-elf")
+
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
 separate_arguments(USER_PROGRAMS_LIST)
 
