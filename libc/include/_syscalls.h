@@ -12,8 +12,12 @@ void sys_debug_put(char);
 void sys_exit_task();
 
 typedef uint32_t Handle;
+#define HANDLE_INVALID 0
 Handle sys_create_task(const void *entry, uint32_t codesize, void *arg);
 void sys_destroy_task(Handle handle);
+void sys_copy_from_task(Handle handle, void *dst, const void *src, size_t size);
+Handle sys_get_parent_task();
+uint32_t sys_get_parent_task_id();
 
 __END_CDECLS
 

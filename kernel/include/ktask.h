@@ -20,7 +20,7 @@ enum TaskState {
 class Task;
 
 const Task *GetMainKernelTask();
-const Task *GetCurrentTask();
+Task *GetCurrentTask();
 
 // Accept any argument and return void.
 using TaskFunc = void (*)(void *);
@@ -42,7 +42,7 @@ class UserTask;
 // during creation.
 class Task {
  public:
-  virtual ~Task() {}
+  virtual ~Task();
 
   // NOTE: These values are assigned in task.s. Be sure to update that file if
   // these are ever changed.
@@ -112,6 +112,12 @@ class Task {
   // same as this task, this just performs a memcpy().
   void Read(void *current_dst, const void *this_dst, size_t size);
 
+  Task *getParent() const {
+    assert(this != GetMainKernelTask() &&
+           "Attempting to get non-existant parent of the main kernel task.");
+    return parent_task_;
+  }
+
  protected:
   virtual uint32_t *getStackPointerImpl() const = 0;
 
@@ -121,6 +127,9 @@ class Task {
   Task(PageDirectory &pd_allocation);
 
   void AddToQueue();
+
+  void AddChildTask(Task &task);
+  void RemoveChildTask(Task &task);
 
  private:
   friend void exit_this_task();
@@ -137,6 +146,9 @@ class Task {
   // FIXME: This is only meaningful for user tasks, not all tasks in general.
   // This should be removed.
   bool user_in_kernel_space_;
+
+  Task *parent_task_;  // This will be null for the main kernel task.
+  std::vector<Task *> child_tasks_;
 };
 
 class KernelTask : public Task {

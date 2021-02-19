@@ -16,6 +16,16 @@
 #include <string>
 #include <vector>
 
+namespace print {
+
+// FIXME: This is used by the VectorFind test. This should not be defined here.
+template <>
+void PrintFormatter(print::PutFunc put, std::ext::PointerIterator<int> it) {
+  return PrintFormatter(put, &*it);
+}
+
+}  // namespace print
+
 namespace {
 
 using utils::BitVector;
@@ -697,12 +707,72 @@ TEST(VectorMove) {
   ASSERT_EQ(heap_used, GetKernelHeapUsed());
 }
 
+TEST(VectorFind) {
+  std::vector<int> v = {1, 2, 3};
+  for (int i : v) {
+    auto it = v.find(i);
+    ASSERT_NE(it, v.end());
+    ASSERT_EQ(*it, i);
+    ASSERT_TRUE(v.contains(i));
+  }
+
+  ASSERT_EQ(v.find(4), v.end());
+  ASSERT_FALSE(v.contains(4));
+}
+
+TEST(VectorErase) {
+  {
+    // Remove first.
+    std::vector<int> v = {1, 2, 3};
+    v.erase(v.find(1));
+    ASSERT_EQ(v.size(), 2);
+    ASSERT_EQ(v[0], 2);
+    ASSERT_EQ(v[1], 3);
+  }
+
+  {
+    // Remove somewhere in the middle.
+    std::vector<int> v = {1, 2, 3};
+    v.erase(v.find(2));
+    ASSERT_EQ(v.size(), 2);
+    ASSERT_EQ(v[0], 1);
+    ASSERT_EQ(v[1], 3);
+  }
+
+  {
+    // Remove last.
+    std::vector<int> v = {1, 2, 3};
+    v.erase(v.find(3));
+    ASSERT_EQ(v.size(), 2);
+    ASSERT_EQ(v[0], 1);
+    ASSERT_EQ(v[1], 2);
+
+    v.push_back(4);
+    ASSERT_EQ(v.size(), 3);
+    ASSERT_EQ(v[0], 1);
+    ASSERT_EQ(v[1], 2);
+    ASSERT_EQ(v[2], 4);
+  }
+
+  {
+    // Remove an element not in the vector.
+    std::vector<int> v = {1, 2, 3};
+    v.erase(v.end());
+    ASSERT_EQ(v.size(), 3);
+    ASSERT_EQ(v[0], 1);
+    ASSERT_EQ(v[1], 2);
+    ASSERT_EQ(v[2], 3);
+  }
+}
+
 TEST_SUITE(VectorSuite) {
   RUN_TEST(PushBack);
   RUN_TEST(VectorRangeCtor);
   RUN_TEST(VectorElemDtors);
   RUN_TEST(VectorRange);
   RUN_TEST(VectorMove);
+  RUN_TEST(VectorFind);
+  RUN_TEST(VectorErase);
 }
 
 [[maybe_unused]] float FreeFunc(int a, char b) {

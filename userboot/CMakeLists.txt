@@ -109,25 +109,36 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_program.bin")
 make_flat_user_binary(test_user_io_privilege test_user_io_privilege.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 
-# Userboot containing a basic shell.
+# Userboot stage 1. The sole purpose of this is to run Userboot stage 2,
+# which contains the rest of the userboot logic, but in ELF format.
 make_flat_user_binary(userboot userboot.cpp umalloc.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
-# Test elf binary.
-add_executable(test-elf test.c)
-target_compile_options(test-elf
+# Userboot stage 2. This continues userboot, but we can run elf binaries,
+# giving us better debugability and something closer to a binary we could
+# normally compile on a linux shell without too many special flags.
+add_executable(userboot-stage2 userboot-stage2.cpp umalloc.cpp)
+target_compile_options(userboot-stage2
+  PRIVATE -fno-exceptions
+  PRIVATE -fno-rtti
   PRIVATE -target i386)
-target_link_options(test-elf
+target_link_options(userboot-stage2
   PRIVATE -target i386-elf
   PRIVATE -nostdlib
   PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
-target_link_libraries(test-elf
+target_link_libraries(userboot-stage2
   # This is a hack we can use to add custom linker flags.
   -Wl,--start-group
-  user_libc user_utils
+  -Wl,--whole-archive
+  user_libc
+  -Wl,--no-whole-archive
+  user_utils user_libcxx
   -Wl,--end-group)
-target_include_directories(test-elf PRIVATE ${LIBC_PROJECT_DIR}/include/)
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test-elf")
+target_include_directories(userboot-stage2 PRIVATE include/)
+target_include_directories(userboot-stage2 PRIVATE ${LIBC_PROJECT_DIR}/include/)
+target_include_directories(userboot-stage2 PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+target_include_directories(userboot-stage2 PRIVATE ${UTILS_PROJECT_DIR}/include/)
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
 separate_arguments(USER_PROGRAMS_LIST)

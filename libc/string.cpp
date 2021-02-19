@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 
 void *memset(void *ptr, int value, size_t size) {
@@ -21,6 +22,14 @@ void *memcpy(void *dst, const void *src, size_t num) {
     ++p_src;
   }
   return dst;
+}
+
+void *memmove(void *dest, const void *src, size_t size) {
+  char *temp = (char *)malloc(size);
+  memcpy(temp, src, size);
+  memcpy(dest, temp, size);
+  free(temp);
+  return dest;
 }
 
 size_t strlen(const char *str) {

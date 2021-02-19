@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel-libc)
-enable_language(CXX)
+enable_language(CXX ASM)
 set(CMAKE_CXX_STANDARD 17)
 
 set(COMMON_SRCS
@@ -11,7 +11,8 @@ set(COMMON_SRCS
   printf.cpp
   stacktrace.cpp
   string.cpp
-  type.cpp)
+  type.cpp
+  crt0.S)
 
 set(KERNEL_SRCS "")
 

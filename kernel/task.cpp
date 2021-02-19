@@ -71,16 +71,30 @@ void TaskMemcpy(Task &task, void *dst, const void *src, size_t size) {
 Task::Task()
     : id_(next_tid++),
       state_(RUNNING),
-      pd_allocation_(GetKernelPageDirectory()) {
+      pd_allocation_(GetKernelPageDirectory()),
+      parent_task_(nullptr) {
   memset(&regs_, 0, sizeof(regs_));
 }
 
 KernelTask::KernelTask() : Task() {}
 
 Task::Task(PageDirectory &pd_allocation)
-    : id_(next_tid++), state_(READY), pd_allocation_(pd_allocation) {
+    : id_(next_tid++),
+      state_(READY),
+      pd_allocation_(pd_allocation),
+      parent_task_(GetCurrentTask()) {
   memset(&regs_, 0, sizeof(regs_));
   assert(ReadyQueue && "Scheduling has not yet been initialized.");
+
+  parent_task_->AddChildTask(*this);
+}
+
+void Task::AddChildTask(Task &task) { child_tasks_.push_back(&task); }
+
+void Task::RemoveChildTask(Task &task) {
+  auto task_iter = child_tasks_.find(&task);
+  assert(task_iter != child_tasks_.end() && "Child task does not exist.");
+  child_tasks_.erase(task_iter);
 }
 
 KernelTask::KernelTask(TaskFunc func, void *arg)
@@ -220,7 +234,7 @@ void exit_this_task() {
 }
 
 const Task *GetMainKernelTask() { return kMainKernelTask; }
-const Task *GetCurrentTask() { return CurrentTask; }
+Task *GetCurrentTask() { return CurrentTask; }
 
 extern "C" void switch_kernel_task_run(Task::X86TaskRegs *);
 extern "C" void switch_first_kernel_task_run(Task::X86TaskRegs *);
@@ -457,4 +471,12 @@ void Task::Write(void *this_dst, const void *current_src, size_t size) {
 
 void Task::Read(void *current_dst, const void *task_src, size_t size) {
   return TaskMemcpy<OtherToCurrent>(*this, current_dst, task_src, size);
+}
+
+Task::~Task() {
+  assert(child_tasks_.empty());
+
+  // This will only be false for the main kernel task.
+  // TODO: Wrap this with an `unlikely`.
+  if (parent_task_) parent_task_->RemoveChildTask(*this);
 }

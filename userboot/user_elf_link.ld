@@ -5,7 +5,7 @@ SECTIONS {
   . = 1024M;
 
   .text ALIGN(4) : {
-    _start = .;
+    *(._start)
     *(.text)
   }
 

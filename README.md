@@ -94,6 +94,7 @@ $ python3 initrd.py test
 
 ```sh
 # Run from root directory
+# FIXME: This doesn't capture the headers in libcxx/ that don't end with .h
 $ clang-format -style=file -i  $(find . -name '*.h') $(find . -name '*.cpp')
 $ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
 ```

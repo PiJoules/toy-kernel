@@ -55,6 +55,19 @@
     return a;                                                         \
   }
 
+#define DEF_SYSCALL5(func, syscall, P1, P2, P3, P4, P5)               \
+  RET_TYPE syscall_##func(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {        \
+    RET_TYPE a;                                                       \
+    asm volatile("int $" SYSCALL_INT                                  \
+                 : "=a"(a)                                            \
+                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1)), \
+                   "c"(reinterpret_cast<uint32_t>(p2)),               \
+                   "d"(reinterpret_cast<uint32_t>(p3)),               \
+                   "S"(reinterpret_cast<uint32_t>(p4)),               \
+                   "D"(reinterpret_cast<uint32_t>(p5)));              \
+    return a;                                                         \
+  }
+
 namespace {
 
 constexpr uint8_t kSyscallInterrupt = 0x80;
@@ -86,6 +99,7 @@ RET_TYPE destroy_user_task(uint32_t handle) {
   // We can safely cast to a UserTask here because this pointer originally was
   // created as a UserTask.
   auto *task = reinterpret_cast<UserTask *>(handle);
+  assert(task->isUserTask());
 
   // Temporarily enable tasks here to allow for the destructor to call Join.
   EnableInterrupts();
@@ -95,12 +109,33 @@ RET_TYPE destroy_user_task(uint32_t handle) {
   return 0;
 }
 
+RET_TYPE copy_from_task(uint32_t handle, void *dst, const void *src,
+                        size_t size) {
+  auto *task = reinterpret_cast<UserTask *>(handle);
+  assert(task->isUserTask());
+  task->Read(dst, src, size);
+  return 0;
+}
+
+RET_TYPE get_parent_task(uint32_t *handle) {
+  *handle = reinterpret_cast<uint32_t>(GetCurrentTask()->getParent());
+  return 0;
+}
+
+RET_TYPE get_parent_task_id(uint32_t *id) {
+  *id = GetCurrentTask()->getParent()->getID();
+  return 0;
+}
+
 void *kSyscalls[] = {
     reinterpret_cast<void *>(debug_write),
     reinterpret_cast<void *>(exit_user_task),
     reinterpret_cast<void *>(debug_read),
     reinterpret_cast<void *>(create_user_task),
     reinterpret_cast<void *>(destroy_user_task),
+    reinterpret_cast<void *>(copy_from_task),
+    reinterpret_cast<void *>(get_parent_task),
+    reinterpret_cast<void *>(get_parent_task_id),
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 

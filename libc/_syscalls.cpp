@@ -33,3 +33,21 @@ Handle sys_create_task(const void *entry, uint32_t codesize, void *arg) {
 void sys_destroy_task(Handle handle) {
   asm volatile("int " INTERRUPT ::"a"(4), "b"((uint32_t)handle));
 }
+
+void sys_copy_from_task(Handle handle, void *dst, const void *src,
+                        size_t size) {
+  asm volatile("int " INTERRUPT ::"a"(5), "b"(handle), "c"((uint32_t)dst),
+               "d"((uint32_t)src), "S"((uint32_t)size));
+}
+
+Handle sys_get_parent_task() {
+  Handle handle;
+  asm volatile("int " INTERRUPT ::"a"(6), "b"((uint32_t)&handle));
+  return handle;
+}
+
+uint32_t sys_get_parent_task_id() {
+  uint32_t id;
+  asm volatile("int " INTERRUPT ::"a"(7), "b"((uint32_t)&id));
+  return id;
+}

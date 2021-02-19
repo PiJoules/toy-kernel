@@ -84,6 +84,36 @@ class vector {
   ext::PointerIterator<T> begin() const { return ext::PointerIterator(data_); }
   ext::PointerIterator<T> end() const { return ext::PointerIterator(data_ + size_); }
 
+  ext::PointerIterator<T> find(const T &ref) const {
+    for (auto it = begin(); it != end(); ++it) {
+      if (*it == ref)
+        return it;
+    }
+    return end();
+  }
+
+  bool contains(const T &ref) const {
+    return find(ref) != end();
+  }
+
+  // FIXME: This should return an iterator pointing to the next element
+  // after the removed one.
+  void erase(ext::PointerIterator<T> iter) {
+    for (auto it = begin(); it != end(); ++it) {
+      if (it == iter) {
+        it->~T();
+
+        // Move data back.
+        size_t pos = it - begin();
+        size_t remaining = end() - (it + 1);
+        memmove(data_ + pos, data_ + pos + 1, remaining * sizeof(T));
+
+        DecrementSize();
+        return;
+      }
+    }
+  }
+
   const T *data() const { return data_; }
 
  private:
@@ -96,6 +126,11 @@ class vector {
       data_ = ext::realloc<T>(data_, capacity_);
       assert(data_ && "Could not request more storage");
     }
+  }
+
+  void DecrementSize() {
+    // TODO: It would be nice to return back some memory.
+    --size_;
   }
 
   size_t size_;

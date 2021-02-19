@@ -1,17 +1,16 @@
 #include <allocator.h>
 #include <assert.h>
 
-extern "C" uint8_t heap_bottom, heap_top;
-
 namespace user {
 
 namespace {
 
 constexpr size_t kChunkSize = 1024;
+const uint8_t *kHeapTop, *kHeapBottom;
 
 void *usbrk_chunk(size_t n, void *&heap) {
   uint8_t *&heap_bytes = reinterpret_cast<uint8_t *&>(heap);
-  assert(heap_bytes + (n * kChunkSize) <= &heap_top &&
+  assert(heap_bytes + (n * kChunkSize) <= kHeapTop &&
          "Attempting to allocate beyond the end of the heap.");
 
   auto *chunk = reinterpret_cast<utils::MallocHeader *>(heap_bytes);
@@ -36,8 +35,10 @@ utils::Allocator UserAllocator;
 
 }  // namespace
 
-void InitializeUserHeap() {
-  UserAllocator.Init(&heap_bottom, usbrk, &heap_top);
+void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top) {
+  kHeapTop = heap_top;
+  kHeapBottom = heap_bottom;
+  UserAllocator.Init(heap_bottom, usbrk, heap_top);
 }
 
 void *umalloc(size_t size) { return UserAllocator.Malloc(size); }

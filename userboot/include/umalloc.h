@@ -9,7 +9,7 @@ void ufree(void *ptr);
 void *urealloc(void *ptr, size_t size);
 void *ucalloc(size_t num, size_t size);
 
-void InitializeUserHeap();
+void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top);
 
 }  // namespace user
 
