@@ -19,6 +19,12 @@ void sys_copy_from_task(Handle handle, void *dst, const void *src, size_t size);
 Handle sys_get_parent_task();
 uint32_t sys_get_parent_task_id();
 
+#define MAP_SUCCESS 0
+#define MAP_UNALIGNED_ADDR -1
+#define MAP_ALREADY_MAPPED -2
+#define MAP_OOM -3
+int32_t sys_map_page(void *addr);
+
 __END_CDECLS
 
 // Provide a nice C++ API if available.

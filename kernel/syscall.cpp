@@ -65,6 +65,28 @@ RET_TYPE get_parent_task_id(uint32_t *id) {
   return 0;
 }
 
+// TODO: It would be better instead if we returned some abstract representation
+// of an allocation rather than specifically allocating a page. IE. something
+// closer to:
+//
+//   RET_TYPE map_memory(void *addr, size_t size, uint8_t flags);
+RET_TYPE map_page(void *vaddr) {
+  if (!Is4MPageAligned(vaddr)) return -1;
+
+  auto &pd = GetCurrentTask()->getPageDirectory();
+  if (pd.isVirtualMapped(vaddr)) return -2;
+
+  // FIXME: We skip the first 4MB because we could still need to read stuff
+  // that multiboot inserted in the first 4MB page. Starting from 0 here could
+  // lead to overwriting that multiboot data. We should probably copy that
+  // data somewhere else after paging is enabled.
+  uint8_t *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
+  if (!paddr) return -3;  // No physical addr available.
+
+  pd.AddPage(vaddr, paddr, /*flags=*/PG_USER);
+  return 0;
+}
+
 void *kSyscalls[] = {
     reinterpret_cast<void *>(debug_write),
     reinterpret_cast<void *>(exit_user_task),
@@ -74,10 +96,13 @@ void *kSyscalls[] = {
     reinterpret_cast<void *>(copy_from_task),
     reinterpret_cast<void *>(get_parent_task),
     reinterpret_cast<void *>(get_parent_task_id),
+    reinterpret_cast<void *>(map_page),
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 
 void SyscallHandler(X86Registers *regs) {
+  assert(GetCurrentTask()->isUserTask() &&
+         "Should not call syscalls from a kernel task.");
   auto syscall_num = regs->eax;
   assert(syscall_num < kNumSyscalls && "Invalid syscall!");
   void *syscall = kSyscalls[syscall_num];

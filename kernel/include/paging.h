@@ -65,10 +65,11 @@ inline bool IsKernelHeap(void *addr) {
 }
 inline bool IsUserCode(void *addr) { return USER_START <= (uintptr_t)addr; }
 
-constexpr uint32_t kPageMask4M = ~UINT32_C(0x3FFFFF);
-constexpr uint32_t kPageSize4M = 0x00400000;
-constexpr uint32_t kRamAs4MPages = 0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB
-constexpr uint32_t kRamAs4KPages =
+constexpr const uint32_t kPageMask4M = ~UINT32_C(0x3FFFFF);
+constexpr const uint32_t kPageSize4M = 0x00400000;
+constexpr const uint32_t kRamAs4MPages =
+    0x400;  // Tofal RAM = 1024 x 4 MB = 4 GB
+constexpr const uint32_t kRamAs4KPages =
     0x100000;  // Tofal RAM = 0x100000 x 4 KB = 4 GB
 
 constexpr uint32_t PageIndex4M(uint32_t addr) { return addr >> 22; }
@@ -77,6 +78,9 @@ inline uint32_t PageIndex4M(const void *addr) {
 }
 inline void *PageAddr4M(uint32_t page) {
   return reinterpret_cast<void *>(page << 22);
+}
+inline bool Is4MPageAligned(void *addr) {
+  return reinterpret_cast<uintptr_t>(addr) % kPageSize4M == 0;
 }
 
 constexpr size_t kNumPageDirEntries = 1024;

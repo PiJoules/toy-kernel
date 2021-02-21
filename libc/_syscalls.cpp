@@ -51,3 +51,9 @@ uint32_t sys_get_parent_task_id() {
   asm volatile("int " INTERRUPT ::"a"(7), "b"((uint32_t)&id));
   return id;
 }
+
+int32_t sys_map_page(void *addr) {
+  RET_TYPE ret;
+  asm volatile("int " INTERRUPT : "=a"(ret) : "0"(8), "b"((uint32_t)addr));
+  return ret;
+}

@@ -87,24 +87,49 @@ extern "C" int __user_main(void *stack) {
   uint8_t *vfs_data = (uint8_t *)arg + sizeof(vfs_size);
   printf("vfs start: %p\n", vfs_data);
 
-  // This is space we allocate exclusively for using as a heap during bringup.
-  // We use this pre-allocated space as a brief substitute for an actual heap.
-  // Note that we create the heap here instead of in bss so we can save some
-  // space in this binary when storing it into the initial ramdisk.
-  alignas(16) uint8_t kHeap[kHeapSize];
-  memset(kHeap, 0, kHeapSize);
-  uint8_t *kHeapBottom = kHeap;
-  uint8_t *kHeapTop = &kHeap[kHeapSize];
+  // Allocate space for the heap on the page immediately after where this is
+  // mapped.
+  // TODO: Formalize this more. Setup of the heap and malloc should be the duty
+  // of libc.
+  void *heap_start = NextPage();
+  auto val = sys_map_page(heap_start);
+  switch (val) {
+    case MAP_UNALIGNED_ADDR:
+      printf(
+          "Attempting to map virtual address %p which is not aligned to "
+          "page.\n",
+          heap_start);
+      return -1;
+    case MAP_ALREADY_MAPPED:
+      printf("Attempting to map virtual address %p which is already mapped.\n",
+             heap_start);
+      return -1;
+    case MAP_OOM:
+      printf("No more physical memory available!\n");
+      return -1;
+    default:
+      printf("Allocated heap page at %p.\n", heap_start);
+  }
 
-  printf("heap_bottom: %p\n", kHeapBottom);
-  printf("heap_top: %p\n", kHeapTop);
+  // Temporary heap. This is the same strategy we use in userboot stage 1, but
+  // we should really have libc establish the heap.
+  uint8_t *heap_bottom = reinterpret_cast<uint8_t *>(heap_start);
+  uint8_t *heap_top = heap_bottom + kPageSize4M;
+  size_t heap_size = kPageSize4M;
 
-  printf("heap space: %u\n", kHeapSize);
-  assert(kHeapSize > vfs_size &&
-         "The heap allocation is not large enough to hold the vfs. More space "
-         "should be allocated for bootstrapping.");
+  if (heap_size < vfs_size * 2) {
+    printf("WARN: The heap size may not be large enough to hold the vfs!\n");
+  }
 
-  user::InitializeUserHeap(kHeapBottom, kHeapTop);
+  // FIXME: This is here because not all the memory in the heap is zero-mapped,
+  // which causes the vfs to not work correctly. This is a bug in the vfs and
+  // should be fixed.
+  memset(heap_bottom, 0, heap_size);
+
+  user::InitializeUserHeap(heap_bottom, heap_top);
+  printf("Initialized userboot stage 2 heap: %p - %p (%u bytes)\n", heap_bottom,
+         heap_top, heap_size);
+
   std::unique_ptr<vfs::Directory> vfs;
   uint32_t entry_offset;
   vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_size, entry_offset);
@@ -114,16 +139,9 @@ extern "C" int __user_main(void *stack) {
   vfs->Dump();
 
   // Check starting a user task via syscall.
-  printf("arg 3: %p\n", arg);
-  void *arg_saved = arg;
   printf("Trying test_user_program.bin ...\n");
   RunFlatUserBinary(*vfs, "test_user_program.bin");
   printf("Finished test_user_program.bin.\n");
-  printf("arg 4: %p\n", arg);
-  printf("arg_saved: %p\n", arg_saved);
-  assert(arg_saved == arg);
-
-  printf("\nWelcome! Type \"help\" for commands\n");
 
   if (const vfs::Node *file = vfs->getFile("userboot-stage2")) {
     LoadElfProgram(file->AsFile().contents.data(), arg);
