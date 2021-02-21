@@ -38,6 +38,8 @@ set(USER_COMPILE_FLAGS
   -g
   -fno-exceptions
   -fno-rtti
+  -fdata-sections
+  -ffunction-sections
   -ftrivial-auto-var-init=pattern)
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
@@ -83,20 +85,21 @@ function(make_flat_user_binary name)
   add_custom_target(${name} ALL
     COMMAND ${CMAKE_LINKER} -T ${CMAKE_CURRENT_SOURCE_DIR}/user_link.ld -m elf_i386
             -o ${name}
+            --gc-sections
             --start-group
 
             --whole-archive
-            $<TARGET_FILE:${libname}>
             $<TARGET_FILE:bootstrap_lib>
 
             --no-whole-archive
+            $<TARGET_FILE:${libname}>
             $<TARGET_FILE:user_libc>
             $<TARGET_FILE:user_libcxx>
             $<TARGET_FILE:user_utils>
 
             --end-group
 
-    COMMENT "Compiling ${name}"
+            COMMENT "Linking ${name}"
     DEPENDS bootstrap_lib ${libname} user_libc user_libcxx
     VERBATIM)
 endfunction()
@@ -117,27 +120,36 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 # Userboot stage 2. This continues userboot, but we can run elf binaries,
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
-add_executable(userboot-stage2 userboot-stage2.cpp umalloc.cpp)
-target_compile_options(userboot-stage2
+add_executable(userboot-stage2.debug userboot-stage2.cpp umalloc.cpp)
+target_compile_options(userboot-stage2.debug
   PRIVATE -fno-exceptions
   PRIVATE -fno-rtti
+  PRIVATE -fdata-sections
+  PRIVATE -ffunction-sections
   PRIVATE -target i386)
-target_link_options(userboot-stage2
+target_link_options(userboot-stage2.debug
   PRIVATE -target i386-elf
   PRIVATE -nostdlib
+  PRIVATE -Wl,--gc-sections
   PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
-target_link_libraries(userboot-stage2
+target_link_libraries(userboot-stage2.debug
   # This is a hack we can use to add custom linker flags.
   -Wl,--start-group
-  -Wl,--whole-archive
-  user_libc
   -Wl,--no-whole-archive
+  user_libc
   user_utils user_libcxx
   -Wl,--end-group)
-target_include_directories(userboot-stage2 PRIVATE include/)
-target_include_directories(userboot-stage2 PRIVATE ${LIBC_PROJECT_DIR}/include/)
-target_include_directories(userboot-stage2 PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-target_include_directories(userboot-stage2 PRIVATE ${UTILS_PROJECT_DIR}/include/)
+target_include_directories(userboot-stage2.debug PRIVATE include/)
+target_include_directories(userboot-stage2.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)
+target_include_directories(userboot-stage2.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+target_include_directories(userboot-stage2.debug PRIVATE ${UTILS_PROJECT_DIR}/include/)
+
+add_custom_target(userboot-stage2 ALL
+  COMMAND ${CMAKE_OBJCOPY} --strip-all userboot-stage2.debug userboot-stage2
+  COMMENT "Stripping userboot-stage2.debug"
+  DEPENDS userboot-stage2.debug
+  VERBATIM)
+
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})

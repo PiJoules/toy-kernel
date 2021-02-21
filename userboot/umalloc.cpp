@@ -35,6 +35,8 @@ utils::Allocator UserAllocator;
 
 }  // namespace
 
+size_t GetHeapUsed() { return UserAllocator.getHeapUsed(); }
+
 void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top) {
   kHeapTop = heap_top;
   kHeapBottom = heap_bottom;

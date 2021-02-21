@@ -35,6 +35,8 @@ set(KERNEL_COMPILE_FLAGS
   -fno-rtti
   -ftrivial-auto-var-init=pattern
   -std=c++17
+  -fdata-sections
+  -ffunction-sections
   -UNDEBUG  # We keep all assert()s
 
   # This is needed for stack tracing.
@@ -78,24 +80,30 @@ target_include_directories(cpp_objs PRIVATE ${UTILS_PROJECT_DIR}/include/)
 #  COMMENT "Create font object file"
 #  VERBATIM)
 
-add_custom_target(${KERNEL} ALL
+# Creates a debug version of the kernel.
+add_custom_target(${KERNEL}.debug ALL
   COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${CMAKE_SOURCE_DIR}/kernel/link.ld
-          -o ${KERNEL}
+          -o ${KERNEL}.debug
+          --gc-sections
           --start-group
 
-          --whole-archive
+          --no-whole-archive
           $<TARGET_FILE:asm_objs>
           $<TARGET_FILE:cpp_objs>
-
-          --no-whole-archive
           $<TARGET_FILE:kernel_libc>
           $<TARGET_FILE:kernel_libcxx>
           $<TARGET_FILE:kernel_utils>
 
           --end-group
+  COMMENT "Link ${KERNEL}.debug"
+  DEPENDS asm_objs cpp_objs kernel_libc kernel_libcxx kernel_utils
+  VERBATIM)
 
+# Creates the stripped version without debuginfo.
+add_custom_target(${KERNEL} ALL
+  COMMAND ${CMAKE_OBJCOPY} --strip-all ${KERNEL}.debug ${KERNEL}
   COMMAND grub-file --is-x86-multiboot ${KERNEL}
 
-  COMMENT "Link ${KERNEL}"
-  DEPENDS asm_objs cpp_objs kernel_libc kernel_libcxx kernel_utils
+  COMMENT "Stripping ${KERNEL}.debug"
+  DEPENDS ${KERNEL}.debug
   VERBATIM)

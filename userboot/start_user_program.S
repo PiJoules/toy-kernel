@@ -1,12 +1,5 @@
-// TODO: This stack isn't used right now, but user code should be in charge of
-// setting up their own stack.
-  .section .bss
-  .align 16
-stack_bottom:
-  .skip 16384  // 16 KB
-stack_top:
-
-  .section .user_program_entry
+  .global __user_program_entry
+  .section .user_program_entry, "ax"
   .type __user_program_entry, @function
 __user_program_entry:
   // ESP points to a page mapped by the kernel to store the initial stack.

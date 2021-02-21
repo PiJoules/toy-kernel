@@ -1,5 +1,5 @@
   .global _start
-  .section ._start
+  .section ._start, "ax"
   .type _start, @function
 _start:
   // ESP points to a page mapped by the kernel to store the initial stack.

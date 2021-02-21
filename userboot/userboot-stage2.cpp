@@ -1,4 +1,5 @@
 #include <_syscalls.h>
+#include <allocator.h>
 #include <stdio.h>
 #include <string.h>
 #include <umalloc.h>
@@ -78,6 +79,10 @@ void RunFlatUserBinary(const vfs::Directory &vfs, const std::string &filename,
 
 }  // namespace
 
+namespace user {
+extern size_t GetHeapUsed();
+}  // namespace user
+
 int main(int argc, char **argv) {
   // FIXME: This should be handled from libc setup.
   __use_debug_log = true;
@@ -119,6 +124,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<uint8_t> vfs_data_holder(new uint8_t[vfs_size]);
   uint8_t *vfs_data = vfs_data_holder.get();
   sys_copy_from_task(parent, vfs_data, vfs_data_loc, vfs_size);
+  printf("heap used: %u\n", user::GetHeapUsed());
 
   std::unique_ptr<vfs::Directory> vfs;
   uint32_t entry_offset;

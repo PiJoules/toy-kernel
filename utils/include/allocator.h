@@ -101,6 +101,8 @@ class Allocator {
   void *heap_end_ = nullptr;
 };
 
+size_t GetHeapUsed();
+
 }  // namespace utils
 
 #endif

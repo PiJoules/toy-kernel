@@ -6,68 +6,6 @@
 #define SYSCALL_INT "0x80"
 #define RET_TYPE int32_t
 
-#define DEF_SYSCALL0(func, syscall)                             \
-  RET_TYPE syscall_##func() {                                   \
-    RET_TYPE a;                                                 \
-    asm volatile("int $" SYSCALL_INT : "=a"(a) : "0"(syscall)); \
-    return a;                                                   \
-  }
-
-#define DEF_SYSCALL1(func, syscall, P1)                                \
-  RET_TYPE syscall_##func(P1 p1) {                                     \
-    RET_TYPE a;                                                        \
-    asm volatile("int $" SYSCALL_INT                                   \
-                 : "=a"(a)                                             \
-                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1))); \
-    return a;                                                          \
-  }
-
-#define DEF_SYSCALL2(func, syscall, P1, P2)                           \
-  RET_TYPE syscall_##func(P1 p1, P2 p2) {                             \
-    RET_TYPE a;                                                       \
-    asm volatile("int $" SYSCALL_INT                                  \
-                 : "=a"(a)                                            \
-                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1)), \
-                   "c"(reinterpret_cast<uint32_t>(p2)));              \
-    return a;                                                         \
-  }
-
-#define DEF_SYSCALL3(func, syscall, P1, P2, P3)                       \
-  RET_TYPE syscall_##func(P1 p1, P2 p2, P3 p3) {                      \
-    RET_TYPE a;                                                       \
-    asm volatile("int $" SYSCALL_INT                                  \
-                 : "=a"(a)                                            \
-                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1)), \
-                   "c"(reinterpret_cast<uint32_t>(p2)),               \
-                   "d"(reinterpret_cast<uint32_t>(p3)));              \
-    return a;                                                         \
-  }
-
-#define DEF_SYSCALL4(func, syscall, P1, P2, P3, P4)                   \
-  RET_TYPE syscall_##func(P1 p1, P2 p2, P3 p3, P4 p4) {               \
-    RET_TYPE a;                                                       \
-    asm volatile("int $" SYSCALL_INT                                  \
-                 : "=a"(a)                                            \
-                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1)), \
-                   "c"(reinterpret_cast<uint32_t>(p2)),               \
-                   "d"(reinterpret_cast<uint32_t>(p3)),               \
-                   "S"(reinterpret_cast<uint32_t>(p4)));              \
-    return a;                                                         \
-  }
-
-#define DEF_SYSCALL5(func, syscall, P1, P2, P3, P4, P5)               \
-  RET_TYPE syscall_##func(P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {        \
-    RET_TYPE a;                                                       \
-    asm volatile("int $" SYSCALL_INT                                  \
-                 : "=a"(a)                                            \
-                 : "0"(syscall), "b"(reinterpret_cast<uint32_t>(p1)), \
-                   "c"(reinterpret_cast<uint32_t>(p2)),               \
-                   "d"(reinterpret_cast<uint32_t>(p3)),               \
-                   "S"(reinterpret_cast<uint32_t>(p4)),               \
-                   "D"(reinterpret_cast<uint32_t>(p5)));              \
-    return a;                                                         \
-  }
-
 namespace {
 
 constexpr uint8_t kSyscallInterrupt = 0x80;
