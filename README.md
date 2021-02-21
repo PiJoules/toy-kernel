@@ -26,7 +26,7 @@ $ ninja  # or `ninja kernel`
 # Make the ramdisk which will contain some user code.
 $ ninja initrd.vfs
 
-# Making a bootable cdrom image that also uses graphics mode.
+# Optional: Make a bootable cdrom image that also contains the initial ramdisk.
 $ ninja myos.iso
 ```
 
@@ -52,26 +52,6 @@ Exit QEMU with `Alt+2, type quit, ENTER`.
 Note that launching QEMU with `-nographic` can mess up the terminal on some
 shells. Use `reset` after exiting QEMU to fix this.
 
-#### Graphics Modes
-
-TODO: Launching in either VGA or graphics mode may not work anymore. We should
-properly support these through user space programs.
-
-Previously, we could display a screen when excluding `-nographic` on which
-characters would be rendered, but those should be migrated to use programs that
-do the printing instead of building it into the kernel.
-
-```sh
-# Just launch the kernel without any initial ramdisk.
-$ qemu-system-i386 -display curses -kernel kernel
-
-# Launch the kernel with a ramdisk.
-$ qemu-system-i386 -display curses -kernel kernel -initrd initrd.vfs
-
-# Launch in graphics mode where pixels are printed to the screen.
-$ qemu-system-i386 -cdrom myos.iso
-```
-
 #### Extra QEMU Options
 
 - `-serial file:serial.log`
@@ -84,7 +64,9 @@ $ qemu-system-i386 -cdrom myos.iso
 
 ## Tests
 
-### initrd
+Kernel tests are run automatically at startup.
+
+### Initial Ramdisk Format
 
 ```sh
 $ python3 initrd.py test
