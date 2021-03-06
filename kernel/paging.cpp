@@ -106,7 +106,7 @@ void InitializePaging(uint32_t high_mem_KB, [[maybe_unused]] bool pages_4K) {
   // The first 128 MB are not used, but the rest of the physical memory is used.
   // In actuality, we only have access to 128 MB of memory, so we can just mark
   // it as used we don't accidentally access it again.
-  PhysicalBitmap.ReservePhysical(/*num_pages=*/32);  // 4 x 32 MB = 128 MB
+  PhysicalBitmap.ReservePhysical(/*num_pages=*/32);  // 4MB x 32 = 128 MB
 
   uint8_t flags = PG_PRESENT | PG_WRITE | PG_4MB;
 

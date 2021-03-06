@@ -2,13 +2,15 @@
 which was referenced many times when building this. Thanks to the devs on them.
 :)
 
-## Requirements
+## (Minimum) Requirements
 
 - Clang 9.0.0
   - `clang` is nice because it doesn't require building a full cross-compiler
     toolchain.
 - ld 2.34
 - CMake 3.15.4
+- tar 1.32
+  - Used for making the filesystem used by userboot.
 
 ### Grub Requirements (Optional)
 
@@ -26,7 +28,7 @@ $ cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++ -DCMAK
 $ ninja  # or `ninja kernel`
 
 # Make the ramdisk which will contain some user code.
-$ ninja initrd.vfs
+$ ninja initrd
 
 # Optional: Make a bootable cdrom image that also contains the initial ramdisk.
 $ ninja myos.iso
@@ -44,7 +46,7 @@ $ ninja myos.iso
 # automation.
 $ qemu-system-i386 -cdrom myos.iso -nographic
 OR
-$ qemu-system-i386 -kernel kernel/kernel -initrd initrd.vfs -nographic
+$ qemu-system-i386 -kernel kernel/kernel -initrd initrd -nographic
 OR
 $ qemu-system-i386 -kernel kernel/kernel -nographic
 ```
@@ -68,19 +70,21 @@ shells. Use `reset` after exiting QEMU to fix this.
 
 Kernel tests are run automatically at startup.
 
-### Initial Ramdisk Format
+## Userboot
 
-```sh
-$ python3 initrd.py test
-```
+If an initial ramdisk is provided, the kernel will jump to the start of the
+ramdisk and execute instructions from there in userspace. This program is called
+the userboot. The initial ramdisk is formatted such that the first stage of
+userboot, which is a flat binary, is at the very start of the initial ramdisk.
+Immediately following it is a USTART-formatted filesystem that userboot parses.
+
+TODO: Move the userboot directory into its own repo.
 
 ## Formatting
 
 ```sh
 # Run from root directory
-# FIXME: This doesn't capture the headers in libcxx/ that don't end with .h
-$ clang-format -style=file -i  $(find . -name '*.h') $(find . -name '*.cpp')
-$ yapf -i --style="{based_on_style: google, indent_width: 2}" *.py
+$ clang-format -style=file -i  $(find . -name '*.h') $(find . -name '*.cpp') libcxx/include/*
 ```
 
 ## TODOs + FIXMEs

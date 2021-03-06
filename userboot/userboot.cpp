@@ -1,9 +1,10 @@
 #include <_syscalls.h>
 #include <elf.h>
-#include <stdio.h>
 #include <umalloc.h>
 #include <userboot.h>
 #include <vfs.h>
+
+#include <cstdio>
 
 extern bool __use_debug_log;
 
@@ -23,7 +24,6 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
     if (p_entry->p_type != PT_LOAD) continue;
 
     uint32_t v_begin = p_entry->p_vaddr;
-    uint32_t v_end = v_begin + p_entry->p_memsz;
     if (v_begin < USER_START) {
       printf("Warning: Skipped to load %d bytes to %x\n", p_entry->p_filesz,
              v_begin);
@@ -50,22 +50,11 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
   }
 }
 
-void RunFlatUserBinary(const vfs::Directory &vfs, const std::string &filename,
-                       void *arg = nullptr) {
-  const vfs::Node *program = vfs.getFile(filename);
-  assert(program && "Could not find binary");
-
-  const vfs::File &file = program->AsFile();
-  size_t size = file.contents.size();
-  printf("%s is %u bytes\n", filename.c_str(), size);
-
-  // Actually create and run the user tasks.
-  sys::Handle handle = sys::CreateTask(file.contents.data(), size, arg);
-  printf("Created %u\n", handle);
-  sys::DestroyTask(handle);
-}
+constexpr const int kExitFailure = -1;
 
 }  // namespace
+
+extern "C" uint8_t __binary_start, __binary_end;
 
 extern "C" int __user_main(void *stack) {
   __use_debug_log = true;
@@ -81,11 +70,11 @@ extern "C" int __user_main(void *stack) {
   printf("stack: %p\n", stack);
   void *arg = ((void **)stack)[0];
   printf("arg (stack[0]): %p\n", arg);
-  size_t vfs_size;
-  memcpy(&vfs_size, arg, sizeof(vfs_size));
-  printf("vfs size: %u\n", vfs_size);
-  uint8_t *vfs_data = (uint8_t *)arg + sizeof(vfs_size);
-  printf("vfs start: %p\n", vfs_data);
+  size_t initrd_size;
+  memcpy(&initrd_size, arg, sizeof(initrd_size));
+  printf("initrd size: %u\n", initrd_size);
+  uint8_t *initrd_data = (uint8_t *)arg + sizeof(initrd_size);
+  printf("initrd start: %p\n", initrd_data);
 
   // Allocate space for the heap on the page immediately after where this is
   // mapped.
@@ -99,14 +88,14 @@ extern "C" int __user_main(void *stack) {
           "Attempting to map virtual address %p which is not aligned to "
           "page.\n",
           heap_start);
-      return -1;
+      return kExitFailure;
     case MAP_ALREADY_MAPPED:
       printf("Attempting to map virtual address %p which is already mapped.\n",
              heap_start);
-      return -1;
+      return kExitFailure;
     case MAP_OOM:
       printf("No more physical memory available!\n");
-      return -1;
+      return kExitFailure;
     default:
       printf("Allocated heap page at %p.\n", heap_start);
   }
@@ -117,34 +106,33 @@ extern "C" int __user_main(void *stack) {
   uint8_t *heap_top = heap_bottom + kPageSize4M;
   size_t heap_size = kPageSize4M;
 
-  if (heap_size < vfs_size * 2) {
+  if (heap_size < initrd_size * 2) {
     printf("WARN: The heap size may not be large enough to hold the vfs!\n");
   }
-
-  // FIXME: This is here because not all the memory in the heap is zero-mapped,
-  // which causes the vfs to not work correctly. This is a bug in the vfs and
-  // should be fixed.
-  memset(heap_bottom, 0, heap_size);
 
   user::InitializeUserHeap(heap_bottom, heap_top);
   printf("Initialized userboot stage 2 heap: %p - %p (%u bytes)\n", heap_bottom,
          heap_top, heap_size);
 
-  std::unique_ptr<vfs::Directory> vfs;
-  uint32_t entry_offset;
-  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_size, entry_offset);
+  printf("entry binary start: %p\n", &__binary_start);
+  printf("entry binary end: %p\n", &__binary_end);
+  size_t entry_binary_size = &__binary_end - &__binary_start;
+  printf("entry binary size: %u\n", entry_binary_size);
 
-  printf("entry point offset: %u\n", entry_offset);
+  size_t vfs_size = initrd_size - entry_binary_size;
+  std::unique_ptr<vfs::Directory> vfs =
+      vfs::ParseUSTAR(initrd_data + entry_binary_size, vfs_size);
+
   printf("vfs:\n");
   vfs->Dump();
 
-  // Check starting a user task via syscall.
-  printf("Trying test_user_program.bin ...\n");
-  RunFlatUserBinary(*vfs, "test_user_program.bin");
-  printf("Finished test_user_program.bin.\n");
-
-  if (const vfs::Node *file = vfs->getFile("userboot-stage2")) {
-    LoadElfProgram(file->AsFile().contents.data(), arg);
+  const vfs::Directory *initrd_dir = vfs->getDir("initrd_files");
+  if (const vfs::File *file = initrd_dir->getFile("userboot-stage2")) {
+    std::unique_ptr<uint8_t> alloc(new uint8_t[sizeof(vfs_size) + vfs_size]);
+    memcpy(alloc.get(), &vfs_size, sizeof(vfs_size));
+    memcpy(alloc.get() + sizeof(vfs_size), initrd_data + entry_binary_size,
+           vfs_size);
+    LoadElfProgram(file->getContents().data(), alloc.get());
   } else {
     printf(
         "ERROR: Missing \"userboot-stage2\" binary. Exiting Userboot Stage 1 "

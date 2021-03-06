@@ -4,6 +4,7 @@ SECTIONS
 {
   /* This should be the same value as USER_START. */
   . = 1024M;
+  __binary_start = .;
 
   .text ALIGN(4):
   {
@@ -29,4 +30,6 @@ SECTIONS
   {
     *(.bss)
   }
+
+  __binary_end = .;
 }

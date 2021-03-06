@@ -51,6 +51,15 @@ bool TestFailed = false;
     if (!AssertEqual(val1, val2, STR(val1), STR(val2), __FILE__, __LINE__)) \
       return;                                                               \
   }
+#define ASSERT_EQ_3WAY(val1, val2, val3)                                    \
+  {                                                                         \
+    if (!AssertEqual(val1, val2, STR(val1), STR(val2), __FILE__, __LINE__)) \
+      return;                                                               \
+    if (!AssertEqual(val1, val3, STR(val1), STR(val3), __FILE__, __LINE__)) \
+      return;                                                               \
+    if (!AssertEqual(val2, val3, STR(val2), STR(val3), __FILE__, __LINE__)) \
+      return;                                                               \
+  }
 
 #define ASSERT_NE(val1, val2)                                                  \
   {                                                                            \

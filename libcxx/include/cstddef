@@ -1,0 +1,8 @@
+#ifndef CSTDDEF_H_
+#define CSTDDEF_H_
+
+#include <stddef.h>
+
+namespace std {}  // namespace std
+
+#endif

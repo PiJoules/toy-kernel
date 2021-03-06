@@ -9,17 +9,25 @@ set(COMMON_SRCS
   allocator.cpp
   builtins.cpp
   print.cpp
+
+  # FIXME: This should not be exposed to the kernel. It is only here so we can
+  # run these tests on the kernel startup, when really most of them should be
+  # run in userspace.
   vfs.cpp)
 
 # FIXME: We should not assume the directory is adjascent to this one.
 set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
 set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
+set(KERNEL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../kernel)
 
 if (DEFINED BUILD_KERNEL_UTILS)
   add_library(kernel_utils STATIC ${COMMON_SRCS})
   target_include_directories(kernel_utils PRIVATE include/)
   target_include_directories(kernel_utils PRIVATE ${LIBC_PROJECT_DIR}/include/)
   target_include_directories(kernel_utils PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+
+  # FIXME: The utils should not be dependent on the kernel.
+  target_include_directories(kernel_utils PRIVATE ${KERNEL_PROJECT_DIR}/include/)
 
   target_compile_options(kernel_utils
     PRIVATE ${KERNEL_COMPILE_FLAGS})

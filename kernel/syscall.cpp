@@ -40,6 +40,7 @@ RET_TYPE destroy_user_task(uint32_t handle) {
   assert(task->isUserTask());
 
   // Temporarily enable tasks here to allow for the destructor to call Join.
+  // FIXME: This should not be explicitly set here.
   EnableInterrupts();
   delete task;
   DisableInterrupts();
@@ -65,26 +66,30 @@ RET_TYPE get_parent_task_id(uint32_t *id) {
   return 0;
 }
 
+#define MAP_SUCCESS (0)
+#define MAP_UNALIGNED_ADDR (-1)
+#define MAP_ALREADY_MAPPED (-2)
+#define MAP_OOM (-3)
+
 // TODO: It would be better instead if we returned some abstract representation
 // of an allocation rather than specifically allocating a page. IE. something
 // closer to:
 //
 //   RET_TYPE map_memory(void *addr, size_t size, uint8_t flags);
 RET_TYPE map_page(void *vaddr) {
-  if (!Is4MPageAligned(vaddr)) return -1;
+  if (!Is4MPageAligned(vaddr)) return MAP_UNALIGNED_ADDR;
 
   auto &pd = GetCurrentTask()->getPageDirectory();
-  if (pd.isVirtualMapped(vaddr)) return -2;
+  if (pd.isVirtualMapped(vaddr)) return MAP_ALREADY_MAPPED;
 
-  // FIXME: We skip the first 4MB because we could still need to read stuff
-  // that multiboot inserted in the first 4MB page. Starting from 0 here could
-  // lead to overwriting that multiboot data. We should probably copy that
-  // data somewhere else after paging is enabled.
+  // FIXME: Note that if we allow the zero-th page, we will be returning NULL
+  // from here effectively. We should have a separate way of returning a failure
+  // state separate from the pointer returned.
   uint8_t *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
-  if (!paddr) return -3;  // No physical addr available.
+  if (!paddr) return MAP_OOM;  // No physical addr available.
 
   pd.AddPage(vaddr, paddr, /*flags=*/PG_USER);
-  return 0;
+  return MAP_SUCCESS;
 }
 
 void *kSyscalls[] = {

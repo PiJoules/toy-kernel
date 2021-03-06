@@ -152,6 +152,15 @@ class PhysicalBitmap4M : public toy::BitArray<kRamAs4MPages> {
 
   auto getRefs(size_t page_index) const { return refs_[page_index]; }
 
+  // TODO: We can move this into BitArray and rename it to `NumZeros`.
+  size_t NumFreePages() const {
+    size_t num = 0;
+    for (size_t i = 0; i < kRamAs4MPages; ++i) {
+      if (!isSet(i)) ++num;
+    }
+    return num;
+  }
+
  private:
   // Whenever we clone a page directory, we also duplicate references to page
   // indexes for physical memory. If we destroy a page directory that was the

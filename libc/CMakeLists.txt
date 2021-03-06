@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(COMMON_SRCS
   assert.cpp
+  ctype.cpp
   stdlib.cpp
   printf.cpp
   stacktrace.cpp

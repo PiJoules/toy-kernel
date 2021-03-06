@@ -5,11 +5,12 @@
  * Naive string implementation.
  */
 
-#include <algorithm>
 #include <assert.h>
 #include <string.h>
-#include <vector>
+
+#include <algorithm>
 #include <cstdlib>
+#include <vector>
 
 namespace std {
 
@@ -24,12 +25,18 @@ class string {
         data_(ext::calloc<char>(capacity_)) {
     memset(data_, 0, capacity_);
   }
-  string(const char *s, size_t init_capacity = kDefaultCapacity)
-      : size_(strlen(s)),
-        capacity_(std::max(init_capacity, size_ + 1)),
+  string(const char *s) : string(s, strlen(s)) {}
+  string(const string &other) : string(other.data_) {}
+
+  string(const char *s, size_t n)
+      : size_(std::min(n, strlen(s))),
+        capacity_(std::max(kDefaultCapacity, size_ + 1)),
         data_(ext::calloc<char>(capacity_)) {
     memcpy(data_, s, size_);
   }
+
+  string(ext::PointerIterator<char> start, ext::PointerIterator<char> last)
+      : string(start.get(), last - start) {}
 
   ~string() { free(data_); }
 
@@ -50,11 +57,55 @@ class string {
   }
 
   char &operator[](size_t index) const { return data_[index]; }
+  char &front() { return data_[0]; }
+  char &back() { return data_[size_ - 1]; }
+  const char &front() const { return data_[0]; }
+  const char &back() const { return data_[size_ - 1]; }
 
   const char *c_str() const { return data_; }
 
   bool operator==(const char *other) const { return strcmp(data_, other) == 0; }
+  bool operator==(const string &other) const {
+    return strcmp(data_, other.data_) == 0;
+  }
   bool operator!=(const char *other) const { return !(operator==(other)); }
+  bool operator!=(const string &other) const { return !(operator==(other)); }
+
+  string &operator+=(const string &other) {
+    // FIXME: We should be able to do one resize and a memcpy().
+    for (size_t i = 0; i < other.size_; ++i) { push_back(other[i]); }
+    return *this;
+  }
+
+  using iter_t = ext::PointerIterator<char>;
+
+  iter_t begin() const { return iter_t(data_); }
+  iter_t end() const { return iter_t(data_ + size_); }
+  iter_t find(char c) const {
+    for (auto it = begin(); it != end(); ++it) {
+      if (*it == c) return it;
+    }
+    return end();
+  }
+
+  // FIXME: This should return an iterator pointing to the next element
+  // after the removed one.
+  void erase(iter_t it) { return erase(it, it + 1); }
+
+  // FIXME: This should return an iterator pointing to the next element
+  // after the removed one.
+  void erase(iter_t first, iter_t last) {
+    assert(begin() <= first && first < end());
+    assert(begin() < last);
+    assert(first < last);
+
+    if (last > end()) last = end();
+
+    size_t remaining = end() - last;
+    memmove(first.get(), last.get(), remaining);
+    *(first + remaining) = 0;
+    size_ -= (last - first);
+  }
 
  private:
   size_t size_;

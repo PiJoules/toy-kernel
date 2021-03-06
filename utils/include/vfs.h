@@ -1,96 +1,153 @@
 #ifndef VFS_H_
 #define VFS_H_
 
-// FIXME: We should eventually move this into a separate directory so that both
-// the kernel and user applications can share this for reading off the initial
-// ramdisk.
+/**
+ * This contains code for manipulating a virtual filesystem.
+ */
 
 #include <BitVector.h>
-#include <assert.h>
-#include <stdint.h>
-#include <string.h>
+#include <rtti.h>
 
+#include <cstring>
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace vfs {
 
-constexpr size_t kFilenameSize = 64;
+class Node {
+ protected:
+  enum NodeKind {
+    kFileKind,
+    kDirectoryKind,
+  };
 
-struct Header {
-  uint32_t id;
-  uint32_t flags;
-  char name[kFilenameSize];
-
-  Header(uint32_t id, bool isfile, const char name[kFilenameSize]);
-
-  bool isFile() const { return flags & 1; }
-  bool isDir() const { return !isFile(); }
-};
-static_assert(sizeof(Header) == 72,
-              "VFS header size changed! Make sure this is expected.");
-
-struct File;
-struct Directory;
-
-struct Node {
-  Header header;
-
-  Node(uint32_t id, bool isdir, const char name[kFilenameSize]);
+ public:
+  Node(NodeKind kind, const std::string &name) : kind_(kind), name_(name) {}
   virtual ~Node() {}
 
-  File &AsFile();
-  const File &AsFile() const;
-  Directory &AsDir();
-  const Directory &AsDir() const;
   void Dump() const;
+
+  const std::string &getName() const { return name_; }
+
+  NodeKind getKind() const { return kind_; }
 
  private:
   void DumpImpl(utils::BitVector &last) const;
+
+  const NodeKind kind_;
+  std::string name_;
 };
 
-struct File : public Node {
-  // Use a vector instead of a string because some of the contents could contain
-  // '0' which would otherwise be read as a null terminator.
-  std::vector<uint8_t> contents;
+class File : public Node {
+ public:
+  File(const std::string &name, const std::vector<uint8_t> &contents)
+      : Node(kFileKind, name), contents_(contents) {}
+  File(const std::string &name) : Node(kFileKind, name) {}
+  const auto &getContents() const { return contents_; }
+  bool empty() const { return contents_.empty(); }
+  size_t getSize() const { return contents_.size(); }
 
-  File(uint32_t id, const char name[kFilenameSize], size_t size,
-       uint8_t *&contents);
+  static bool classof(const Node *node) { return node->getKind() == kFileKind; }
+
+  // Copy data into the start of the file.
+  void Write(const char *data, size_t size) {
+    contents_.resize(size);
+    for (size_t i = 0; i < size; ++i)
+      contents_[i] = static_cast<uint8_t>(data[i]);
+  }
+
+ private:
+  std::vector<uint8_t> contents_;
 };
 
-struct Directory : public Node {
-  std::vector<std::unique_ptr<Node>> files;
+class Directory : public Node {
+ public:
+  // Constructor for a root directory.
+  Directory() : Directory("") {}
 
-  Directory(uint32_t id, const char name[kFilenameSize],
-            std::vector<std::unique_ptr<Node>> &files);
+  // Directory with no files.
+  Directory(const std::string &name) : Node(kDirectoryKind, name) {}
 
-  bool hasFile(const std::string &name) const;
-  const Node *getFile(const std::string &name) const;
+  Directory(const std::string &name, std::vector<std::unique_ptr<Node>> &files)
+      : Node(kDirectoryKind, name), nodes_(std::move(files)) {}
+
+  static bool classof(const Node *node) {
+    return node->getKind() == kDirectoryKind;
+  }
+
+  bool hasNode(const std::string &name) const { return getNode(name); }
+  bool hasFile(const std::string &name) const { return getFile(name); }
+  bool hasDir(const std::string &name) const { return getDir(name); }
+
+  // Returns the following node in this directory if it exists, otherwise return
+  // nullptr.
+  const Node *getNode(const std::string &name) const;
+  Node *getNode(const std::string &name);
+
+  // Returns the following file/directory in this directory if it exists,
+  // otherwise returns nullptr if it doesn't exist or isn't a file or directory.
+  const File *getFile(const std::string &name) const;
+  File *getFile(const std::string &name);
+  const Directory *getDir(const std::string &name) const;
+  Directory *getDir(const std::string &name);
+
+  const std::vector<std::unique_ptr<Node>> &getNodes() const { return nodes_; }
+  std::vector<std::unique_ptr<Node>> &getNodes() { return nodes_; }
+
+  size_t NumFiles() const { return nodes_.size(); }
+  bool empty() const { return nodes_.empty(); }
+
+  // Make the directory and return a refrence to it.
+  Directory &mkdir(const std::string &path);
+
+  // Make the file and return a reference to it.
+  File &mkfile(const std::string &path);
+
+ private:
+  // Create the upper most directory in a potentially nested directory path and
+  // return it. For example, given "a/b/c", then a directory for "a" will be
+  // created in this one and a reference to it will be returned.
+  Directory &mkdir_once(const std::string &path);
+
+  std::vector<std::unique_ptr<Node>> nodes_;
 };
 
-/**
- * Parse a Directory from a raw pointer.
- */
-std::unique_ptr<Directory> ParseVFS(uint8_t *bytes, uint8_t *bytes_end,
-                                    uint32_t &entry_offset);
+union TarBlock {
+  union {
+    // Pre-POSIX.1-1988 format
+    struct {
+      char name[100];  // file name
+      char mode[8];    // permissions
+      char uid[8];     // user id (octal)
+      char gid[8];     // group id (octal)
+      char size[12];   // size (octal)
+      char mtime[12];  // modification time (octal)
+      char check[8];  // sum of unsigned characters in block, with spaces in the
+                      // check field while calculation is done (octal)
+      char link;      // link indicator
+      char link_name[100];  // name of linked file
+    };
 
-/**
- * Get the filename and size of the entry point file from raw vfs data.
- */
-inline uint8_t *GetEntryFilenameSize(uint8_t *vfs_data, char *&filename,
-                                     uint32_t &size) {
-  // The entry point filename is 68 bytes before the start of the entry point
-  // file (64 bytes for the name length + 4 bytes for size of file).
-  uint32_t entry_offset;
-  memcpy(&entry_offset, vfs_data, sizeof(entry_offset));
+    // UStar format (POSIX IEEE P1003.1)
+    struct {
+      char old[156];             // first 156 octets of Pre-POSIX.1-1988 format
+      char type;                 // file type
+      char also_link_name[100];  // name of linked file
+      char ustar[8];             // ustar\000
+      char owner[32];            // user name (string)
+      char group[32];            // group name (string)
+      char major[8];             // device major number
+      char minor[8];             // device minor number
+      char prefix[155];
+    };
+  };
 
-  // The entry point size is 4 bytes before the start of the entry point file.
-  memcpy(&size, vfs_data + entry_offset - 4, sizeof(uint32_t));
+  char block[512];  // raw memory (500 octets of actual data, padded to 1 block)
+};
+constexpr const size_t kTarBlockSize = 512;
+static_assert(sizeof(TarBlock) == kTarBlockSize);
 
-  filename = reinterpret_cast<char *>(vfs_data) + entry_offset - 68;
-  return vfs_data + entry_offset;
-}
+std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive, size_t tarsize);
 
 }  // namespace vfs
 

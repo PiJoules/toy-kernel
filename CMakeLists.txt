@@ -10,17 +10,16 @@ set(IMAGE myos.iso)
 
 add_subdirectory(kernel)
 
-# This adds the build rules for making initrd.vfs.
-set(INITRD initrd.vfs)
+# This adds the build rules for making the initial ramdisk.
+set(INITRD initrd)
 if(EXISTS ${CMAKE_SOURCE_DIR}/userboot)
   MESSAGE("Found userboot subdirectory. Using this to create initrd.")
   set(INITRD_DST_DIR ${CMAKE_CURRENT_BINARY_DIR})
   add_subdirectory(userboot)
 endif()
 
-# This takes the initrd.vfs sitting in the build directory and uses it. This
-# initrd does not need to be from the userboot directory. It can be any initrd
-# file that contains a file named "userboot" and has an entry point at USER_START.
+# This takes the initrd sitting in the build directory and uses it. This
+# initrd does not need to be from the userboot directory.
 add_custom_target(${IMAGE}
   COMMAND mkdir -p isodir/boot/grub
   COMMAND cp kernel/${KERNEL} isodir/boot/${KERNEL}

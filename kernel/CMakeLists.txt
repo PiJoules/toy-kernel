@@ -63,6 +63,7 @@ target_compile_options(cpp_objs PRIVATE ${KERNEL_COMPILE_FLAGS})
 target_include_directories(cpp_objs PRIVATE ${LIBC_PROJECT_DIR}/include/)
 target_include_directories(cpp_objs PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
 target_include_directories(cpp_objs PRIVATE ${UTILS_PROJECT_DIR}/include/)
+target_compile_definitions(cpp_objs PRIVATE KERNEL)
 
 # TODO: Move this to a user program.
 ## The object file provided by this will provided the symbols needed for fonts

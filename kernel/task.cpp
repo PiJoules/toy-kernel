@@ -32,10 +32,11 @@ enum Direction {
 };
 
 template <Direction Dir>
-void TaskMemcpy(Task &task, void *dst, const void *src, size_t size) {
+void TaskMemcpy(Task &task, Task &other_task, void *dst, const void *src,
+                size_t size) {
   DisableInterruptsRAII raii;
 
-  if (GetCurrentTask() == &task) {
+  if (&other_task == &task) {
     memcpy(dst, src, size);
     return;
   }
@@ -54,15 +55,15 @@ void TaskMemcpy(Task &task, void *dst, const void *src, size_t size) {
 
   void *paddr = task.getPageDirectory().GetPhysicalAddr(vaddr_page);
   uint8_t *shared_mem = (uint8_t *)TMP_SHARED_TASK_MEM_START;
-  GetCurrentTask()->getPageDirectory().AddPage(shared_mem, paddr, /*flags=*/0,
-                                               /*allow_physical_reuse=*/true);
+  other_task.getPageDirectory().AddPage(shared_mem, paddr, /*flags=*/0,
+                                        /*allow_physical_reuse=*/true);
 
   const void *adj_src =
       Dir == CurrentToOther ? src : (shared_mem + vaddr_offset);
   void *adj_dst = Dir == CurrentToOther ? (shared_mem + vaddr_offset) : dst;
   memcpy(adj_dst, adj_src, size);
 
-  GetCurrentTask()->getPageDirectory().RemovePage(shared_mem);
+  other_task.getPageDirectory().RemovePage(shared_mem);
 }
 
 }  // namespace
@@ -170,6 +171,14 @@ UserTask::UserTask(TaskFunc func, size_t codesize, void *arg,
   GetKernelPageDirectory().RemovePage(user_shared);
 
   AddToQueue();
+
+  // Copy the function code from the parent (current) task into this task's
+  // address space.
+  void *userstart_paddr = GetPhysicalBitmap4M().NextFreePhysicalPage();
+  getPageDirectory().AddPage((void *)USER_START, userstart_paddr, PG_USER);
+  assert(getPageDirectory().GetPhysicalAddr((void *)USER_START) ==
+         userstart_paddr);
+  Write((void *)USER_START, (void *)userfunc_, usercode_size_);
 }
 
 void Task::AddToQueue() {
@@ -440,18 +449,7 @@ void UserTask::SetupBeforeTaskRun() {
   set_kernel_stack(reinterpret_cast<uint32_t>(getEsp0StackPointer()));
 
   if (OnFirstRun()) {
-    // This will be the first instance this user task should run. In this case,
-    // we should copy the code into its own address space.
-    // FIXME: We skip the first 4MB because we could still need to read
-    // stuff that multiboot inserted in the first 4MB page. Starting from 0
-    // here could lead to overwriting that multiboot data. We should
-    // probably copy that data somewhere else after paging is enabled.
-    void *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
-    getPageDirectory().AddPage((void *)USER_START, paddr, PG_USER);
-    assert(getPageDirectory().GetPhysicalAddr((void *)USER_START) == paddr);
-
-    Write((void *)USER_START, (void *)userfunc_, usercode_size_);
-
+    // Just perform a check to make sure we will jump to the right place.
     uint32_t stack_val;
     Read(&stack_val, (void *)getRegs().esp, sizeof(stack_val));
     assert(stack_val == USER_START);
@@ -466,11 +464,13 @@ void DestroyScheduler() {
 }
 
 void Task::Write(void *this_dst, const void *current_src, size_t size) {
-  return TaskMemcpy<CurrentToOther>(*this, this_dst, current_src, size);
+  return TaskMemcpy<CurrentToOther>(*this, *GetCurrentTask(), this_dst,
+                                    current_src, size);
 }
 
 void Task::Read(void *current_dst, const void *task_src, size_t size) {
-  return TaskMemcpy<OtherToCurrent>(*this, current_dst, task_src, size);
+  return TaskMemcpy<OtherToCurrent>(*this, *GetCurrentTask(), current_dst,
+                                    task_src, size);
 }
 
 Task::~Task() {

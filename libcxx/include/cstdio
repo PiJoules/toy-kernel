@@ -1,0 +1,8 @@
+#ifndef CSTDIO_H_
+#define CSTDIO_H_
+
+#include <stdio.h>
+
+namespace std {}  // namespace std
+
+#endif

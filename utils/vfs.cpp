@@ -1,74 +1,80 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <type_traits.h>
 #include <vfs.h>
+
+#include <cctype>
+#include <memory>
+
+#ifndef KERNEL
+#include <cstdio>
+#endif
 
 namespace vfs {
 
 namespace {
 
-template <typename T>
-T ReadAndAdvance(uint8_t *&ptr) {
-  // NOTE: This assumes the endianness matches that of the host system.
-  T x;
-  memcpy(&x, ptr, sizeof(T));
-  ptr += sizeof(T);
-  return x;
+constexpr const char kDirectory = '5';
+constexpr const char kPathSeparator = '/';
+
+void InplaceLStrip(std::string &path) {
+  if (path.empty()) return;
+
+  while (isspace(path[0])) path.erase(path.begin());
 }
 
-std::unique_ptr<Node> ParseOneNode(uint8_t *&bytes) {
-  uint32_t fileid = ReadAndAdvance<uint32_t>(bytes);
-  uint32_t flags = ReadAndAdvance<uint32_t>(bytes);
-  bool isfile = flags & 1;
+void InplaceRStrip(std::string &path) {
+  if (path.empty()) return;
 
-  char name[kFilenameSize];
-  memset(name, 0, kFilenameSize);
-  memcpy(name, bytes, kFilenameSize);
-  bytes += kFilenameSize;
-
-  size_t size = ReadAndAdvance<uint32_t>(bytes);
-
-  if (isfile) {
-    return std::unique_ptr<Node>(new File(fileid, name, size, bytes));
-  } else {
-    std::vector<std::unique_ptr<Node>> nodes;
-    for (size_t i = 0; i < size; ++i) { nodes.push_back(ParseOneNode(bytes)); }
-    return std::unique_ptr<Node>(new Directory(fileid, name, nodes));
+  while (1) {
+    auto it = path.end() - 1;
+    if (!isspace(*it)) return;
+    path.erase(it);
   }
+}
+
+std::string SimplifyName(std::string name) {
+  std::string path(name);
+  InplaceLStrip(path);
+  InplaceRStrip(path);
+  if (path.empty()) return path;
+
+  auto found_sep = path.find(kPathSeparator);
+  if (found_sep == path.end()) {
+    // "dirname"
+    return path;
+  }
+
+  if (found_sep == path.end() - 1) {
+    // "dirname/"
+    return std::string(path.c_str(), path.size() - 1);
+  }
+
+  return name;
+}
+
+Node *GetNodeImpl(const Directory &dir, const std::string &path) {
+  std::string name = SimplifyName(path);
+  if (name.empty()) return nullptr;
+
+  for (const std::unique_ptr<Node> &node : dir.getNodes()) {
+    auto simplified = SimplifyName(node->getName());
+    if (name == simplified) return node.get();
+  }
+  return nullptr;
+}
+
+size_t oct2bin(const char *str, size_t size) {
+  size_t n = 0;
+  const char *c = str;
+  while (size-- > 0) {
+    n *= 8;
+    n += *c - '0';
+    c++;
+  }
+  return n;
 }
 
 }  // namespace
 
-Header::Header(uint32_t id, bool isfile, const char name[kFilenameSize])
-    : id(id), flags(0) {
-  flags |= static_cast<uint32_t>(isfile);
-  memcpy(this->name, name, std::min(kFilenameSize, strlen(name)));
-}
-
-Node::Node(uint32_t id, bool isfile, const char name[kFilenameSize])
-    : header(id, isfile, name) {}
-
-File &Node::AsFile() {
-  assert(header.isFile());
-  return *(static_cast<File *>(this));
-}
-
-const File &Node::AsFile() const {
-  assert(header.isFile());
-  return *(static_cast<const File *>(this));
-}
-
-Directory &Node::AsDir() {
-  assert(header.isDir());
-  return *(static_cast<Directory *>(this));
-}
-
-const Directory &Node::AsDir() const {
-  assert(header.isDir());
-  return *(static_cast<const Directory *>(this));
-}
-
+#ifndef KERNEL
 void Node::Dump() const {
   utils::BitVector last;
   DumpImpl(last);
@@ -89,50 +95,139 @@ void Node::DumpImpl(utils::BitVector &last) const {
       printf("|--");
   }
 
-  printf("%s\n", header.name);
+  printf("%s\n", getName().c_str());
 
-  if (header.isFile() || AsDir().files.empty()) return;
+  if (rtti::isa<File>(this)) return;
 
-  for (size_t i = 0; i < AsDir().files.size() - 1; ++i) {
+  const Directory *dir;
+  if ((dir = rtti::dyn_cast<Directory>(this))) {
+    if (dir->getNodes().empty()) return;
+  }
+
+  for (size_t i = 0; i < dir->getNodes().size() - 1; ++i) {
     last.push_back(0);
-    AsDir().files[i]->DumpImpl(last);
+    dir->getNodes()[i]->DumpImpl(last);
     last.pop_back();
   }
 
   last.push_back(1);
-  AsDir().files.back()->DumpImpl(last);
+  dir->getNodes().back()->DumpImpl(last);
   last.pop_back();
 }
+#endif
 
-File::File(uint32_t id, const char name[kFilenameSize], size_t size,
-           uint8_t *&contents)
-    : Node(id, /*isfile=*/true, name), contents(contents, contents + size) {
-  contents += size;
+const Node *Directory::getNode(const std::string &path) const {
+  return GetNodeImpl(*this, path);
 }
 
-Directory::Directory(uint32_t id, const char name[kFilenameSize],
-                     std::vector<std::unique_ptr<Node>> &files)
-    : Node(id, /*isfile=*/false, name), files(std::move(files)) {}
-
-std::unique_ptr<Directory> ParseVFS(uint8_t *bytes_begin, uint8_t *bytes_end,
-                                    uint32_t &entry_offset) {
-  entry_offset = ReadAndAdvance<uint32_t>(bytes_begin);
-
-  std::vector<std::unique_ptr<Node>> nodes;
-  while (bytes_begin < bytes_end) {
-    nodes.push_back(ParseOneNode(bytes_begin));
-  }
-  assert(bytes_begin == bytes_end);
-  return std::make_unique<Directory>(/*id=*/-1, "root", nodes);
+Node *Directory::getNode(const std::string &path) {
+  return GetNodeImpl(*this, path);
 }
 
-bool Directory::hasFile(const std::string &name) const { return getFile(name); }
-
-const Node *Directory::getFile(const std::string &name) const {
-  for (const std::unique_ptr<Node> &node : files) {
-    if (name == node->header.name) return node.get();
-  }
+const File *Directory::getFile(const std::string &path) const {
+  if (const auto *file = rtti::dyn_cast_or_null<File>(GetNodeImpl(*this, path)))
+    return file;
   return nullptr;
+}
+
+File *Directory::getFile(const std::string &path) {
+  if (auto *file = rtti::dyn_cast_or_null<File>(GetNodeImpl(*this, path)))
+    return file;
+  return nullptr;
+}
+
+const Directory *Directory::getDir(const std::string &path) const {
+  if (const auto *dir =
+          rtti::dyn_cast_or_null<Directory>(GetNodeImpl(*this, path)))
+    return dir;
+  return nullptr;
+}
+
+Directory *Directory::getDir(const std::string &path) {
+  if (auto *dir = rtti::dyn_cast_or_null<Directory>(GetNodeImpl(*this, path)))
+    return dir;
+  return nullptr;
+}
+
+Directory &Directory::mkdir_once(const std::string &path) {
+  std::string normalized_name = SimplifyName(path);
+  if (Node *node = getNode(normalized_name))
+    return *rtti::cast<Directory>(node);
+
+  std::unique_ptr<Node> dir(new Directory(normalized_name));
+  nodes_.push_back(std::move(dir));
+  return *rtti::cast<Directory>(nodes_.back().get());
+}
+
+Directory &Directory::mkdir(const std::string &name) {
+  std::string path = SimplifyName(name);
+  Directory *current_dir = this;
+  while (!path.empty()) {
+    auto sep = path.find(kPathSeparator);
+    std::string substr(path.begin(), sep + 1);
+    current_dir = &(current_dir->mkdir_once(substr));
+    path.erase(path.begin(), sep + 1);
+  }
+  return *current_dir;
+}
+
+File &Directory::mkfile(const std::string &name) {
+  std::string path = SimplifyName(name);
+  assert(path[0] != kPathSeparator);
+  Directory *current_dir = this;
+  std::string::iter_t sep(nullptr);
+  while ((sep = path.find(kPathSeparator)) != path.end()) {
+    // Keep going until we don't have another path separator.
+    std::string substr(path.begin(), sep + 1);
+    current_dir = &(current_dir->mkdir_once(substr));
+    path.erase(path.begin(), sep + 1);
+  }
+  assert(!path.empty() && "Missing filename");
+
+  std::unique_ptr<Node> file(new File(path));
+  current_dir->nodes_.push_back(std::move(file));
+  return *rtti::cast<File>(current_dir->nodes_.back().get());
+}
+
+std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive, size_t tarsize) {
+  assert(tarsize % kTarBlockSize == 0 &&
+         "Tar file is not a multiple of 512 bytes.");
+
+  std::unique_ptr<Directory> root(new Directory);
+
+  const TarBlock *tar = reinterpret_cast<const TarBlock *>(archive);
+  while (tarsize && memcmp(tar->ustar, "ustar", 5) == 0) {
+    std::string path(tar->prefix);
+    path += tar->name;
+
+    size_t filesize = oct2bin(tar->size, sizeof(TarBlock::size) - 1);
+    if (tar->type == kDirectory) {
+      assert(!filesize && "A directory should have no file size.");
+      ++tar;
+      tarsize -= kTarBlockSize;
+      root->mkdir(path);
+      continue;
+    }
+
+    assert(filesize);
+
+    // Skip past the header.
+    ++tar;
+    tarsize -= kTarBlockSize;
+
+    // Round up to the nearest number of 512 byte chunks.
+    size_t num_chunks = (filesize % kTarBlockSize)
+                            ? (filesize / kTarBlockSize) + 1
+                            : (filesize / kTarBlockSize);
+
+    File &file = root->mkfile(path);
+    file.Write(reinterpret_cast<const char *>(tar), filesize);
+
+    tar += num_chunks;
+    tarsize -= num_chunks * kTarBlockSize;
+  }
+
+  return root;
 }
 
 }  // namespace vfs

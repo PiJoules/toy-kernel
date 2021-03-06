@@ -19,7 +19,9 @@ project(toy-kernel-userboot)
 enable_language(CXX ASM)
 set(CMAKE_CXX_STANDARD 17)
 
-set(INITRD initrd.vfs)
+if(NOT DEFINED INITRD)
+  set(INITRD initrd)
+endif()
 
 if(DEFINED INITRD_DST_DIR)
   set(SHOULD_COPY_INITRD true)
@@ -40,6 +42,9 @@ set(USER_COMPILE_FLAGS
   -fno-rtti
   -fdata-sections
   -ffunction-sections
+  -Wall
+  -Werror
+  -Wno-unused-command-line-argument
   -ftrivial-auto-var-init=pattern)
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
@@ -160,15 +165,21 @@ if (NOT ${Python3_Interpreter_FOUND})
   message(FATAL_ERROR "Could not find python3 interpreter")
 endif()
 
+set(INITRD_DIR initrd_files/)
+
 add_custom_target(${INITRD}
-  COMMAND mkdir -p initrd/
+  COMMAND mkdir -p ${INITRD_DIR}
 
   # Copy user programs + data
   COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
-  COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f initrd/ ; done"
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/initrd.py -o initrd.vfs initrd/
-          --entry userboot
-  COMMAND /bin/sh -c "if ${SHOULD_COPY_INITRD}; then cp initrd.vfs ${INITRD_DST_DIR}/; fi"
+  COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f ${INITRD_DIR} ; done"
+  COMMAND tar --format=ustar -cf ${INITRD}.tar ${INITRD_DIR}
+
+  # The initrd will consist of the concatenation of the entry program at the
+  # start of the file and the tarball for the ustar filesystem.
+  COMMAND /bin/sh -c "cat userboot ${INITRD}.tar > ${INITRD}"
+
+  COMMAND /bin/sh -c "if ${SHOULD_COPY_INITRD}; then cp ${INITRD} ${INITRD_DST_DIR}/; fi"
 
   COMMENT "Create the initial ramdisk with '${USER_PROGRAMS}'"
   DEPENDS ${USER_PROGRAMS_LIST}

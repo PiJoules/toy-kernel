@@ -5,8 +5,8 @@
 
 namespace std {
 
-using ::malloc;
 using ::free;
+using ::malloc;
 
 namespace ext {
 

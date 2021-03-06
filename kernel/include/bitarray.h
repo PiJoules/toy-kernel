@@ -1,6 +1,9 @@
 #ifndef BIT_ARRAY_H_
 #define BIT_ARRAY_H_
 
+// FIXME: Move this to utils.
+
+#include <kernel.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -51,6 +54,16 @@ class BitArray {
   }
 
   const uint8_t *get() const { return bitarray_; }
+
+  void Dump() const {
+    // FIXME: We should be able to print up to 64-bit ints with this to save
+    // some space. Also when we move this out of the kernel and into utils, this
+    // method should go away and there should be kernel/userspace-specific
+    // functions for dumping.
+    for (size_t i = 0; i < NumBits / 8; ++i) {
+      DebugPrint("{} ", print::Hex(bitarray_[i]));
+    }
+  }
 
  protected:
   uint8_t bitarray_[NumBits / 8];

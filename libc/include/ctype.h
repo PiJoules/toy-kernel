@@ -7,6 +7,8 @@ extern "C" {
  * Return true if a character is printable.
  */
 bool isprint(char c);
+
+bool isspace(char c);
 }
 
 #endif

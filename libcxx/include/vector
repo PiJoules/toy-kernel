@@ -1,10 +1,11 @@
 #ifndef VECTOR_H_
 #define VECTOR_H_
 
-#include <initializer_list>
 #include <iterator.h>
+
 #include <algorithm>
 #include <cstdlib>
+#include <initializer_list>
 #include <new>
 
 /**
@@ -52,7 +53,9 @@ class vector {
       : size_(other.size_),
         capacity_(other.capacity_),
         data_(ext::malloc<T>(capacity_)) {
-    for (size_t i = 0; i < size_; ++i) { new (&data_[i]) T(std::move(other[i])); }
+    for (size_t i = 0; i < size_; ++i) {
+      new (&data_[i]) T(std::move(other[i]));
+    }
 
     // After the move, `other` is guaranteed to be empty().
     other.size_ = 0;
@@ -65,6 +68,11 @@ class vector {
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+
+  void resize(size_t size) {
+    // FIXME: We should just be able to do this once rather than in a loop.
+    while (size_ < size) IncrementSize();
+  }
 
   void push_back(const T &item) {
     IncrementSize();
@@ -82,19 +90,18 @@ class vector {
   const T &back() const { return data_[size_ - 1]; }
 
   ext::PointerIterator<T> begin() const { return ext::PointerIterator(data_); }
-  ext::PointerIterator<T> end() const { return ext::PointerIterator(data_ + size_); }
+  ext::PointerIterator<T> end() const {
+    return ext::PointerIterator(data_ + size_);
+  }
 
   ext::PointerIterator<T> find(const T &ref) const {
     for (auto it = begin(); it != end(); ++it) {
-      if (*it == ref)
-        return it;
+      if (*it == ref) return it;
     }
     return end();
   }
 
-  bool contains(const T &ref) const {
-    return find(ref) != end();
-  }
+  bool contains(const T &ref) const { return find(ref) != end(); }
 
   // FIXME: This should return an iterator pointing to the next element
   // after the removed one.

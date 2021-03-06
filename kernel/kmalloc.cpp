@@ -1,6 +1,5 @@
 #include <allocator.h>
 #include <assert.h>
-#include <kernel.h>
 #include <kmalloc.h>
 #include <paging.h>
 #include <panic.h>

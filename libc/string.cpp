@@ -25,6 +25,7 @@ void *memcpy(void *dst, const void *src, size_t num) {
 }
 
 void *memmove(void *dest, const void *src, size_t size) {
+  if (!size) return dest;
   char *temp = (char *)malloc(size);
   memcpy(temp, src, size);
   memcpy(dest, temp, size);
@@ -44,4 +45,15 @@ int strcmp(const char *s1, const char *s2) {
     ++s2;
   }
   return *s1 - *s2;
+}
+
+int memcmp(const void *lhs, const void *rhs, size_t size) {
+  const auto *v1 = reinterpret_cast<const unsigned char *>(lhs);
+  const auto *v2 = reinterpret_cast<const unsigned char *>(rhs);
+  while (size && (*v1 == *v2)) {
+    ++v1;
+    ++v2;
+    --size;
+  }
+  return *v1 - *v2;
 }

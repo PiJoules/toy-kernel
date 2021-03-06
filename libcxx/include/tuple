@@ -8,8 +8,9 @@ class tuple_impl : public tuple_impl<CurIdx, First>,
                    public tuple_impl<CurIdx + 1, Rest...> {
  public:
   constexpr tuple_impl(First first, Rest... rest)
-    : tuple_impl<CurIdx, First>(first),
-      tuple_impl<CurIdx + 1, Rest...>(rest...), first(first) {}
+      : tuple_impl<CurIdx, First>(first),
+        tuple_impl<CurIdx + 1, Rest...>(rest...),
+        first(first) {}
 
   First &getFirst() { return first; }
   const First &getFirst() const { return first; }
@@ -37,7 +38,7 @@ template <typename First, typename... Rest>
 class tuple : public tuple_impl<0, First, Rest...> {
  public:
   constexpr tuple(First first, Rest... rest)
-    : tuple_impl<0, First, Rest...>(first, rest...) {}
+      : tuple_impl<0, First, Rest...>(first, rest...) {}
 };
 
 template <typename T>
@@ -60,17 +61,16 @@ struct tuple_element<0, tuple<Head, Tail...>> {
 };
 
 template <size_t I, typename... Types>
-auto &get(tuple<Types...>& t) {
+auto &get(tuple<Types...> &t) {
   using ElemTy = typename tuple_element<I, tuple<Types...>>::type;
   return static_cast<tuple_impl<I, ElemTy> &>(t).getFirst();
 }
 
 template <size_t I, typename... Types>
-const auto &get(const tuple<Types...>& t) {
+const auto &get(const tuple<Types...> &t) {
   using ElemTy = typename tuple_element<I, tuple<Types...>>::type;
   return static_cast<const tuple_impl<I, ElemTy> &>(t).getFirst();
 }
-
 
 }  // namespace std
 

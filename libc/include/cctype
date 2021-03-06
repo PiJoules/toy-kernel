@@ -1,0 +1,12 @@
+#ifndef CCTYPE_H_
+#define CCTYPE_H_
+
+#include <ctype.h>
+
+namespace std {
+
+using ::isspace;
+
+}  // namespace std
+
+#endif

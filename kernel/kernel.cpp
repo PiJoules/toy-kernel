@@ -2,7 +2,6 @@
 #include <descriptortables.h>
 #include <io.h>
 #include <kernel.h>
-#include <keyboard.h>
 #include <kmalloc.h>
 #include <ktask.h>
 #include <multiboot.h>
@@ -12,7 +11,6 @@
 #include <syscall.h>
 #include <tests.h>
 #include <timer.h>
-#include <vfs.h>
 
 using print::Hex;
 
@@ -22,20 +20,6 @@ namespace {
 
 const auto kPhysicalKernelAddrStart = reinterpret_cast<uintptr_t>(&_start);
 const auto kPhysicalKernelAddrEnd = reinterpret_cast<uintptr_t>(&_end);
-
-UserTask RunFlatUserBinary(
-    const vfs::Directory &vfs, const std::string &filename, void *arg = nullptr,
-    UserTask::CopyArgFunc copyfunc = UserTask::CopyArgDefault) {
-  const vfs::Node *program = vfs.getFile(filename);
-  assert(program && "Could not find binary");
-
-  const vfs::File &file = program->AsFile();
-  size_t size = file.contents.size();
-  DebugPrint("{} is {} bytes\n", filename.c_str(), size);
-
-  // Actually create and run the user tasks.
-  return UserTask((TaskFunc)file.contents.data(), size, arg, copyfunc);
-}
 
 /**
  * Setup the kernel to allow full functionality by the time we leave this
@@ -91,10 +75,6 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
   InitializeSyscalls();
   DebugPrint("Syscalls initialized.\n");
 
-  // FIXME: The keyboard driver should eventually be moved to userspace also.
-  InitializeKeyboard();
-  DebugPrint("Keyboard initialized.\n");
-
   if (*num_mods) {
     // NOTE: After we initialize paging, we may not be able to access all data
     // pointed to by multiboot located in the first page of memory. All that
@@ -117,68 +97,13 @@ void KernelSetup(const Multiboot *multiboot, size_t *num_mods,
   DebugPrint("Kernel setup complete.\n");
 }
 
-void CheckGPFTriggerred(X86Registers *regs) {
-  assert(regs->int_no == kGeneralProtectionFault);
-  exit_this_task();
-}
-
-/**
- * Playground environment now that the kernel is setup.
- *
- * FIXME: Ideally most of this would be moved into userspace and we should be
- * able to call them from there. Running user tests and loading the vfs should
- * be handled from userspace.
- */
-void KernelLoadPrograms(uint8_t *vfs_data, size_t vfs_data_size) {
-  std::unique_ptr<vfs::Directory> vfs;
-  uint32_t entry_offset;
-  vfs = vfs::ParseVFS(vfs_data, vfs_data + vfs_data_size, entry_offset);
-  DebugPrint("vfs entry point offset: {}\n", entry_offset);
-
-  uint32_t codesize;
-  char *name;
-  uint8_t *entry = vfs::GetEntryFilenameSize(vfs_data, name, codesize);
-  DebugPrint("entry point: {}\n", entry);
-  DebugPrint("entry point file: {}\n", name);
-  DebugPrint("entry point file size:{}\n", codesize);
-
-  // FIXME: test_user_program.bin is a user binary that is run for checking that
-  // user programs have their own address spaces. Ideally, this would be
-  // contained in its own test rather than hardcoding it here.
-  DebugPrint("Checking userspace tasks...\n");
-
-  UserTask t1 = RunFlatUserBinary(*vfs, "test_user_program.bin");
-  DebugPrint("Launched task {}\n", t1.getID());
-  UserTask t2 = RunFlatUserBinary(*vfs, "test_user_program.bin");
-  DebugPrint("Launched task {}\n", t2.getID());
-  t1.Join();
-  t2.Join();
-  assert(t1.getPageDirectory().get() != t2.getPageDirectory().get() &&
-         "Expected user tasks to have unique address spaces.");
-
-  {
-    // Test that I/O instructions are not triggerred in userspace.
-    auto old_handler = GetInterruptHandler(kGeneralProtectionFault);
-    RegisterInterruptHandler(kGeneralProtectionFault, CheckGPFTriggerred);
-    UserTask io_priv_test = RunFlatUserBinary(*vfs, "test_user_io_privilege");
-    io_priv_test.Join();
-
-    DebugPrint(
-        "General protection fault is triggerred on an I/O instruction in "
-        "userspace!\n");
-    RegisterInterruptHandler(kGeneralProtectionFault, old_handler);
-  }
-}
-
 void KernelJumpToUserEntry(uint8_t *vfs_data, size_t vfs_data_size) {
   DebugPrint("Jumping to userspace via entry point in intrd...\n");
+  DebugPrint("initrd size: {}\n", vfs_data_size);
+  DebugPrint("free pages: {}\n", GetPhysicalBitmap4M().NumFreePages());
 
-  uint32_t codesize;
-  char *name;
-  uint8_t *entry = vfs::GetEntryFilenameSize(vfs_data, name, codesize);
-  DebugPrint("entry point file: {}\n", name);
-  DebugPrint("entry point file size: {}\n", codesize);
-
+  // We should be able to just copy the entire ramdisk and jump to the first
+  // thing on it.
   struct VFSData {
     void *data;
     size_t size;
@@ -207,7 +132,8 @@ void KernelJumpToUserEntry(uint8_t *vfs_data, size_t vfs_data_size) {
     return start;
   };
 
-  UserTask entrytask((TaskFunc)entry, codesize, &vfs_data_struct, copyfunc);
+  UserTask entrytask((TaskFunc)vfs_data, vfs_data_size, &vfs_data_struct,
+                     copyfunc);
   entrytask.Join();
 }
 
@@ -243,7 +169,18 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
 
   // FIXME: Find a way to run kernel-specific tests elsewhere instead of at
   // startup. Perhaps the tests should only be included for debug builds?
+  size_t free_pages = GetPhysicalBitmap4M().NumFreePages();
+  DebugPrint("free pages: {}\n", free_pages);
   RunTests();
+  DebugPrint("free pages: {}\n", GetPhysicalBitmap4M().NumFreePages());
+
+  // FIXME: We should probably uproot all of the allocation code and use buckets
+  // or padding to allocations to force some alignment since somehow, we're
+  // seeing a bunch of unecessary page allocations. In the long run, I would
+  // like to move the concept of a heap out of the kernel for something more
+  // deterministic.
+  // assert(free_pages == GetPhysicalBitmap4M().NumFreePages() &&
+  //       "Tests should not take up any more physical memory.");
 
   DebugPrint("# of multiboot modules: {}\n", num_mods);
   assert(num_mods <= 1 &&
@@ -253,7 +190,6 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   if (num_mods) {
     DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
 
-    KernelLoadPrograms(mod_start, mod_end - mod_start);
     KernelJumpToUserEntry(mod_start, mod_end - mod_start);
 
     kfree(mod_start);

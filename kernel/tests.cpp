@@ -7,8 +7,10 @@
 #include <kmalloc.h>
 #include <ktask.h>
 #include <print.h>
+#include <rtti.h>
 #include <string.h>
 #include <tests.h>
+#include <vfs.h>
 
 #include <initializer_list>
 #include <memory>
@@ -23,13 +25,27 @@ template <>
 void PrintFormatter(print::PutFunc put, std::ext::PointerIterator<int> it) {
   return PrintFormatter(put, &*it);
 }
+template <>
+void PrintFormatter(print::PutFunc put, std::string s) {
+  return PrintFormatter(put, s.c_str());
+}
+template <>
+void PrintFormatter(print::PutFunc put, std::ext::PointerIterator<char> it) {
+  return PrintFormatter(put, &*it);
+}
 
 }  // namespace print
 
 namespace {
 
+using rtti::cast;
+using rtti::dyn_cast;
+using rtti::isa;
 using utils::BitVector;
 using utils::MallocHeader;
+using vfs::Directory;
+using vfs::File;
+using vfs::Node;
 
 TEST(IntegerPower) {
   for (uint32_t p = 0, expected = 1; p < 31; ++p, expected <<= 1) {
@@ -966,14 +982,96 @@ TEST(StringConstruction) {
   ASSERT_EQ(s.size(), 3);
   ASSERT_STREQ(s.c_str(), "abc");
 
-  std::string s2("abc", /*init_capacity=*/1);
-  ASSERT_EQ(s2.size(), 3);
-  ASSERT_STREQ(s2.c_str(), "abc");
+  std::string s2("abc", 2);
+  ASSERT_EQ(s2.size(), 2);
+  ASSERT_STREQ(s2.c_str(), "ab");
+
+  std::string s3(s.begin() + 1, s.end());
+  ASSERT_EQ(s3.size(), 2);
+  ASSERT_STREQ(s3.c_str(), "bc");
+}
+
+TEST(StringConcat) {
+  std::string s("abc");
+  std::string s2("def");
+  s += s2;
+  ASSERT_EQ(s.size(), 6);
+  ASSERT_STREQ(s.c_str(), "abcdef");
+}
+
+TEST(StringIterator) {
+  std::string s("abc");
+  size_t i = 0;
+  for (auto it = s.begin(); it != s.end(); ++it) {
+    ASSERT_EQ(it - s.begin(), i);
+    ASSERT_EQ(*it, s[i]);
+    ++i;
+  }
+}
+
+TEST(StringErase) {
+  {
+    std::string s("abc");
+    s.erase(s.find('a'));
+    ASSERT_EQ(s.size(), 2);
+    ASSERT_EQ(s, "bc");
+  }
+  {
+    std::string s("abc");
+    s.erase(s.find('b'));
+    ASSERT_EQ(s.size(), 2);
+    ASSERT_EQ(s, "ac");
+  }
+  {
+    std::string s("abc");
+    s.erase(s.find('c'));
+    ASSERT_EQ(s.size(), 2);
+    ASSERT_EQ(s, "ab");
+  }
+  {
+    std::string s("abc");
+    s.erase(s.find('a'), s.find('a') + 2);
+    ASSERT_EQ(s.size(), 1);
+    ASSERT_EQ(s, "c");
+  }
+  {
+    std::string s("abc");
+    s.erase(s.find('b'), s.find('b') + 2);
+    ASSERT_EQ(s.size(), 1);
+    ASSERT_EQ(s, "a");
+  }
+  {
+    std::string s("abc");
+    s.erase(s.begin(), s.end());
+    ASSERT_EQ(s.size(), 0);
+    ASSERT_EQ(s, "");
+  }
+  {
+    std::string s("a");
+    auto it = s.find('/');
+    ASSERT_EQ(it, s.end());
+
+    std::string substr(s.begin(), it + 1);
+    ASSERT_EQ(substr.size(), 1);
+
+    s.erase(s.begin(), it + 1);
+    ASSERT_EQ(s, "");
+  }
+  {
+    std::string s("a");
+    std::string s2(s);
+
+    // The underlying C-strings should be different allocations.
+    ASSERT_NE(s.c_str(), s2.c_str());
+  }
 }
 
 TEST_SUITE(StringSuite) {
   RUN_TEST(StringTest);
   RUN_TEST(StringConstruction);
+  RUN_TEST(StringConcat);
+  RUN_TEST(StringIterator);
+  RUN_TEST(StringErase);
 }
 
 TEST(BitVectorTest) {
@@ -1048,6 +1146,333 @@ TEST(TupleTest) {
 
 TEST_SUITE(TupleSuite) { RUN_TEST(TupleTest); }
 
+TEST(VFSRootDir) {
+  size_t heap_used = GetKernelHeapUsed();
+  {
+    Directory root;
+    ASSERT_EQ(root.NumFiles(), 0);
+    ASSERT_TRUE(root.empty());
+
+    root.mkdir("a");
+    ASSERT_EQ(root.NumFiles(), 1);
+    ASSERT_FALSE(root.empty());
+
+    // Add an existing file.
+    root.mkdir("a");
+    ASSERT_EQ(root.NumFiles(), 1);
+    ASSERT_TRUE(root.hasDir("a"));
+
+    // Trailing path separator.
+    root.mkdir("a/");
+    ASSERT_EQ(root.NumFiles(), 1);
+
+    root.mkdir("b/");
+    ASSERT_EQ(root.NumFiles(), 2);
+    ASSERT_TRUE(root.hasDir("b"));
+
+    ASSERT_FALSE(root.hasDir("  c/  "));
+    root.mkdir("  c/  ");
+    ASSERT_EQ(root.NumFiles(), 3);
+    ASSERT_TRUE(root.hasDir("c"));
+    ASSERT_TRUE(root.hasDir(" c/ "));
+    ASSERT_TRUE(root.hasDir(" c "));
+
+    {
+      Directory &dir = root.mkdir("a/b");
+      ASSERT_EQ(root.NumFiles(), 3);
+      ASSERT_TRUE(root.hasDir("a"));
+      ASSERT_EQ(root.getDir("a")->NumFiles(), 1);
+      ASSERT_EQ(root.getDir("a")->getDir("b"), &dir);
+      ASSERT_TRUE(dir.empty());
+    }
+
+    {
+      Directory &dir = root.mkdir("a/b/c/d/");
+      ASSERT_EQ(root.NumFiles(), 3);
+      ASSERT_EQ(root.getDir("a")->NumFiles(), 1);
+      ASSERT_EQ(root.getDir("a")->getDir("b")->getDir("c")->getDir("d"), &dir);
+      ASSERT_TRUE(dir.empty());
+    }
+
+    {
+      File &file = root.mkfile("d");
+      ASSERT_EQ(root.NumFiles(), 4);
+      ASSERT_EQ(root.getFile("d"), &file);
+      ASSERT_TRUE(root.getFile("d")->empty());
+
+      // Writing
+      const char str[] = "abcd";
+      file.Write(str, strlen(str));
+      ASSERT_EQ(root.getFile("d")->getSize(), 4);
+      ASSERT_EQ(
+          memcmp(root.getFile("d")->getContents().data(), str, strlen(str)), 0);
+    }
+
+    {
+      File &file = root.mkfile("a/a");
+      ASSERT_EQ(root.getDir("a")->NumFiles(), 2);
+      ASSERT_EQ(root.getDir("a")->getFile("a"), &file);
+    }
+
+    {
+      File &file = root.mkfile("a/b/c/d/e");
+      ASSERT_EQ(
+          root.getDir("a")->getDir("b")->getDir("c")->getDir("d")->getFile("e"),
+          &file);
+    }
+
+    {
+      DebugPrint("start: {}\n", GetKernelHeapUsed());
+      const char path[] = "initrd_files/test_user_program.bin";
+      File &file = root.mkfile(path);
+      DebugPrint("end: {}\n", GetKernelHeapUsed());
+      return;
+      ASSERT_TRUE(root.hasDir("initrd_files"));
+      ASSERT_TRUE(
+          root.getDir("initrd_files")->hasFile("test_user_program.bin"));
+      ASSERT_EQ(root.getDir("initrd_files")->getFile("test_user_program.bin"),
+                &file);
+    }
+  }
+  ASSERT_EQ(heap_used, GetKernelHeapUsed());
+}
+
+TEST_SUITE(VFS) { RUN_TEST(VFSRootDir); }
+
+TEST(RTTICasts) {
+  struct A {
+    enum A_Kind {
+      // clang-format off
+      DEF_KIND_FIRST(A)
+        DEF_KIND_FIRST(B)
+          DEF_KIND_LEAF(D)
+          DEF_KIND_FIRST(E)
+            DEF_KIND_LEAF(F)
+          DEF_KIND_LAST(E)
+        DEF_KIND_LAST(B)
+
+        DEF_KIND_FIRST(C)
+        // Note that we should also check for E in C.
+        DEF_KIND_LAST(C)
+      DEF_KIND_LAST(A)
+      // clang-format on
+    };
+
+    const A_Kind kind_;
+    A_Kind getKind() const { return kind_; }
+
+    A() : kind_(RTTI_KIND(A)) {}
+    A(A_Kind kind) : kind_(kind) {}
+
+    int a = 1;
+    virtual int func() { return a; }
+
+    DEFINE_CLASSOF(A, A)
+  };
+
+  struct B : public virtual A {
+    int b = 2;
+    int func() override { return b; }
+    B() : B(RTTI_KIND(B)) {}
+    B(A_Kind kind) : A(kind) {}
+
+    DEFINE_CLASSOF(A, B)
+  };
+
+  struct C : public virtual A {
+    int c = 3;
+    int func() override { return c; }
+
+    C() : C(RTTI_KIND(C)) {}
+    C(A_Kind kind) : A(kind) {}
+
+    // We also need to do an extra check for E in C because the kind for E is
+    // actually defined within B.
+    DEFINE_CLASSOF2(A, C, E)
+  };
+
+  struct D : public B {
+    int d = 4;
+    int func() override { return d; }
+
+    D() : D(RTTI_KIND(D)) {}
+    D(A_Kind kind) : A(kind), B(kind) {}
+    DEFINE_CLASSOF(A, D)
+  };
+
+  struct E : public B, public C {
+    int e = 5;
+    int func() override { return e; }
+
+    E() : E(RTTI_KIND(E)) {}
+    E(A_Kind kind) : A(kind), B(kind), C(kind) {}
+
+    DEFINE_CLASSOF(A, E)
+  };
+
+  struct F : public E {
+    int f = 6;
+    int func() override { return f; }
+
+    F() : A(RTTI_KIND(F)), E(RTTI_KIND(F)) {}
+    DEFINE_CLASSOF(A, F)
+  };
+
+  A a;
+  B b;
+  C c;
+  D d;
+  E e;
+  F f;
+
+  A *a_b = &b;
+  A *a_c = &c;
+  A *a_d = &d;
+  A *a_e = &e;
+  A *a_f = &f;
+
+  // A
+  ASSERT_TRUE(isa<A>(&a));
+  ASSERT_FALSE(isa<B>(&a));
+  ASSERT_FALSE(isa<C>(&a));
+  ASSERT_FALSE(isa<D>(&a));
+  ASSERT_FALSE(isa<E>(&a));
+  ASSERT_FALSE(isa<F>(&a));
+
+  ASSERT_TRUE(isa<A>(a_b));
+  ASSERT_TRUE(isa<A>(a_c));
+  ASSERT_TRUE(isa<A>(a_d));
+  ASSERT_TRUE(isa<A>(a_e));
+  ASSERT_TRUE(isa<A>(a_f));
+
+  // Note that we can't cast parents to virtual children, so we can't assert
+  // something like `dyn_cast<B>(&a) == nullptr`.
+  ASSERT_EQ_3WAY(dyn_cast<A>(&a), cast<A>(&a), &a);
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_b), cast<A>(a_b), &b);
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_c), cast<A>(a_c), &c);
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_d), cast<A>(a_d), &d);
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_e), cast<A>(a_e), &e);
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_f), cast<A>(a_f), &f);
+
+  // B
+  ASSERT_TRUE(isa<A>(&b));
+  ASSERT_TRUE(isa<B>(&b));
+  ASSERT_FALSE(isa<C>(&b));
+  ASSERT_FALSE(isa<D>(&b));
+  ASSERT_FALSE(isa<E>(&b));
+  ASSERT_FALSE(isa<F>(&b));
+
+  ASSERT_TRUE(isa<A>(a_b));
+  ASSERT_TRUE(isa<B>(a_b));
+  ASSERT_FALSE(isa<C>(a_b));
+  ASSERT_FALSE(isa<D>(a_b));
+  ASSERT_FALSE(isa<E>(a_b));
+  ASSERT_FALSE(isa<F>(a_b));
+
+  ASSERT_EQ_3WAY(dyn_cast<A>(&b), cast<A>(&b), &b);
+  ASSERT_EQ_3WAY(dyn_cast<B>(&b), cast<B>(&b), &b);
+  ASSERT_EQ(dyn_cast<C>(&b), nullptr);
+  ASSERT_EQ(dyn_cast<D>(&b), nullptr);
+  ASSERT_EQ(dyn_cast<E>(&b), nullptr);
+  ASSERT_EQ(dyn_cast<F>(&b), nullptr);
+
+  // Note that we can't cast parents to virtual children, so we can't assert
+  // something like `dyn_cast<B>(&a) == nullptr`. This follows sute for the
+  // remaining a_* variables. This is a matter of the language and not this RTTI
+  // feature.
+  ASSERT_EQ_3WAY(dyn_cast<A>(a_b), cast<A>(a_b), a_b);
+
+  // C
+  ASSERT_TRUE(isa<A>(&c));
+  ASSERT_FALSE(isa<B>(&c));
+  ASSERT_TRUE(isa<C>(&c));
+  ASSERT_FALSE(isa<D>(&c));
+  ASSERT_FALSE(isa<E>(&c));
+  ASSERT_FALSE(isa<F>(&c));
+
+  ASSERT_TRUE(isa<A>(a_c));
+  ASSERT_FALSE(isa<B>(a_c));
+  ASSERT_TRUE(isa<C>(a_c));
+  ASSERT_FALSE(isa<D>(a_c));
+  ASSERT_FALSE(isa<E>(a_c));
+  ASSERT_FALSE(isa<F>(a_c));
+
+  ASSERT_EQ_3WAY(dyn_cast<A>(&c), cast<A>(&c), &c);
+  ASSERT_EQ(dyn_cast<B>(&c), nullptr);
+  ASSERT_EQ_3WAY(dyn_cast<C>(&c), cast<C>(&c), &c);
+  ASSERT_EQ(dyn_cast<D>(&c), nullptr);
+  ASSERT_EQ(dyn_cast<E>(&c), nullptr);
+  ASSERT_EQ(dyn_cast<F>(&c), nullptr);
+
+  // D
+  ASSERT_TRUE(isa<A>(&d));
+  ASSERT_TRUE(isa<B>(&d));
+  ASSERT_FALSE(isa<C>(&d));
+  ASSERT_TRUE(isa<D>(&d));
+  ASSERT_FALSE(isa<E>(&d));
+  ASSERT_FALSE(isa<F>(&d));
+
+  ASSERT_TRUE(isa<A>(a_d));
+  ASSERT_TRUE(isa<B>(a_d));
+  ASSERT_FALSE(isa<C>(a_d));
+  ASSERT_TRUE(isa<D>(a_d));
+  ASSERT_FALSE(isa<E>(a_d));
+  ASSERT_FALSE(isa<F>(a_d));
+
+  ASSERT_EQ_3WAY(dyn_cast<A>(&d), cast<A>(&d), &d);
+  ASSERT_EQ_3WAY(dyn_cast<B>(&d), cast<B>(&d), &d);
+  ASSERT_EQ(dyn_cast<C>(&d), nullptr);
+  ASSERT_EQ_3WAY(dyn_cast<D>(&d), cast<D>(&d), &d);
+  ASSERT_EQ(dyn_cast<E>(&d), nullptr);
+  ASSERT_EQ(dyn_cast<F>(&d), nullptr);
+
+  // E
+  ASSERT_TRUE(isa<A>(&e));
+  ASSERT_TRUE(isa<B>(&e));
+  ASSERT_TRUE(isa<C>(&e));
+  ASSERT_FALSE(isa<D>(&e));
+  ASSERT_TRUE(isa<E>(&e));
+  ASSERT_FALSE(isa<F>(&e));
+
+  ASSERT_TRUE(isa<A>(a_e));
+  ASSERT_TRUE(isa<B>(a_e));
+  ASSERT_TRUE(isa<C>(a_e));
+  ASSERT_FALSE(isa<D>(a_e));
+  ASSERT_TRUE(isa<E>(a_e));
+  ASSERT_FALSE(isa<F>(a_e));
+
+  ASSERT_EQ_3WAY(dyn_cast<A>(&e), cast<A>(&e), &e);
+  ASSERT_EQ_3WAY(dyn_cast<B>(&e), cast<B>(&e), &e);
+  ASSERT_EQ_3WAY(dyn_cast<C>(&e), cast<C>(&e), &e);
+  ASSERT_EQ(dyn_cast<D>(&e), nullptr);
+  ASSERT_EQ_3WAY(dyn_cast<E>(&e), cast<E>(&e), &e);
+  ASSERT_EQ(dyn_cast<F>(&e), nullptr);
+
+  // F
+  ASSERT_TRUE(isa<A>(&f));
+  ASSERT_TRUE(isa<B>(&f));
+  ASSERT_TRUE(isa<C>(&f));
+  ASSERT_FALSE(isa<D>(&f));
+  ASSERT_TRUE(isa<E>(&f));
+  ASSERT_TRUE(isa<F>(&f));
+
+  ASSERT_TRUE(isa<A>(a_f));
+  ASSERT_TRUE(isa<B>(a_f));
+  ASSERT_TRUE(isa<C>(a_f));
+  ASSERT_FALSE(isa<D>(a_f));
+  ASSERT_TRUE(isa<E>(a_f));
+  ASSERT_TRUE(isa<F>(a_f));
+
+  ASSERT_EQ_3WAY(dyn_cast<A>(&f), cast<A>(&f), &f);
+  ASSERT_EQ_3WAY(dyn_cast<B>(&f), cast<B>(&f), &f);
+  ASSERT_EQ_3WAY(dyn_cast<C>(&f), cast<C>(&f), &f);
+  ASSERT_EQ(dyn_cast<D>(&f), nullptr);
+  ASSERT_EQ_3WAY(dyn_cast<E>(&f), cast<E>(&f), &f);
+  ASSERT_EQ_3WAY(dyn_cast<F>(&f), cast<F>(&f), &f);
+}
+
+TEST_SUITE(RTTI) { RUN_TEST(RTTICasts); }
+
 }  // namespace
 
 void RunTests() {
@@ -1069,4 +1494,6 @@ void RunTests() {
   tests.RunSuite(TypeTraits);
   tests.RunSuite(BitVectorSuite);
   tests.RunSuite(TupleSuite);
+  tests.RunSuite(VFS);
+  tests.RunSuite(RTTI);
 }

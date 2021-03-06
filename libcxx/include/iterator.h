@@ -26,6 +26,8 @@ class PointerIterator {
 
   T *operator->() const { return ptr_; }
 
+  T *get() const { return ptr_; }
+
   bool operator==(const PointerIterator &other) const {
     return ptr_ == other.ptr_;
   }
@@ -33,9 +35,23 @@ class PointerIterator {
     return ptr_ != other.ptr_;
   }
 
+  bool operator<(const PointerIterator<T> &other) const {
+    return ptr_ < other.ptr_;
+  }
+  bool operator<=(const PointerIterator<T> &other) const {
+    return ptr_ <= other.ptr_;
+  }
+  bool operator>(const PointerIterator<T> &other) const {
+    return ptr_ > other.ptr_;
+  }
+  bool operator>=(const PointerIterator<T> &other) const {
+    return ptr_ >= other.ptr_;
+  }
+
   size_t operator-(const PointerIterator<T> &other) const {
     return ptr_ - other.ptr_;
   }
+  PointerIterator<T> operator-(int64_t i) const { return ptr_ - i; }
 
   PointerIterator<T> operator+(int i) const { return ptr_ + i; }
 

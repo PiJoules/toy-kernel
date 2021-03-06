@@ -1,0 +1,12 @@
+#ifndef CSTRING_H_
+#define CSTRING_H_
+
+#include <string.h>
+
+namespace std {
+
+using ::memcmp;
+
+}  // namespace std
+
+#endif
