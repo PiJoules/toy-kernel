@@ -67,6 +67,13 @@ bool TestFailed = false;
       return;                                                                  \
   }
 
+#define ASSERT_GE(val1, val2)                                                 \
+  {                                                                           \
+    if (!AssertGreaterThanOrEqual(val1, val2, STR(val1), STR(val2), __FILE__, \
+                                  __LINE__))                                  \
+      return;                                                                 \
+  }
+
 class TestingFramework {
  public:
   TestingFramework() {
@@ -149,6 +156,21 @@ bool AssertNotEqual(const T1 &found, const T2 &expected, const char *found_expr,
   DebugPrint("Found `{}` which is:\n", found_expr);
   DebugPrint("  {}\n\n", found);
   DebugPrint("Received `{}` which is:\n", expected_expr);
+  DebugPrint("  {}\n\n", expected);
+  ++NumFailures;
+  TestFailed = true;
+  return false;
+}
+
+template <typename T1, typename T2>
+bool AssertGreaterThanOrEqual(const T1 &found, const T2 &expected,
+                              const char *found_expr, const char *expected_expr,
+                              const char *file, int line) {
+  if (found >= expected) return true;
+  DebugPrint("Found value is less than the expected {}:{}\n", file, line);
+  DebugPrint("Found `{}` which is:\n", found_expr);
+  DebugPrint("  {}\n\n", found);
+  DebugPrint("Expected `{}` which is:\n", expected_expr);
   DebugPrint("  {}\n\n", expected);
   ++NumFailures;
   TestFailed = true;

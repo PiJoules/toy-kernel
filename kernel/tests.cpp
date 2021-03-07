@@ -227,13 +227,17 @@ TEST(TaskAllocation) {
   uint8_t size2 = 1;
   auto *alloc2 = toy::kmalloc<uint8_t>(size2);
 
-  ASSERT_EQ(MallocHeader::FromPointer(alloc2)->size,
+  // The allocations should have a size at least greater than what was
+  // requested.
+  ASSERT_GE(MallocHeader::FromPointer(alloc2)->size,
             size2 + sizeof(MallocHeader));
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + (size + sizeof(MallocHeader)) +
-                                     (size2 + sizeof(MallocHeader)));
+  ASSERT_EQ(GetKernelHeapUsed(), heap_used +
+                                     MallocHeader::FromPointer(alloc1)->size +
+                                     MallocHeader::FromPointer(alloc2)->size);
 
   kfree(alloc1);
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + size2 + sizeof(MallocHeader));
+  ASSERT_EQ(GetKernelHeapUsed(),
+            heap_used + MallocHeader::FromPointer(alloc2)->size);
   kfree(alloc2);
   ASSERT_EQ(GetKernelHeapUsed(), heap_used);
 }
@@ -253,13 +257,13 @@ TEST(Realloc) {
   size_t heap_used = GetKernelHeapUsed();
   size_t init_size = 10;
   void *ptr = kmalloc(init_size);
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + 10 + sizeof(MallocHeader));
+  ASSERT_GE(GetKernelHeapUsed(), heap_used + 10 + sizeof(MallocHeader));
 
   // Re-usable pointer for size 0 realloc.
   ASSERT_EQ(krealloc(ptr, 0), nullptr);
   auto *chunk = MallocHeader::FromPointer(ptr);
   ASSERT_EQ(chunk->used, 1);
-  ASSERT_EQ(chunk->size, init_size + sizeof(MallocHeader));
+  ASSERT_GE(chunk->size, init_size + sizeof(MallocHeader));
 
   // Same size allocation.
   ASSERT_EQ(krealloc(ptr, init_size), ptr);
@@ -279,17 +283,7 @@ TEST(Realloc) {
   ptr = krealloc(newptr, init_size);
   ASSERT_EQ(ptr, newptr);
   ASSERT_EQ(chunk2->used, 1);
-  ASSERT_EQ(chunk2->size, init_size + sizeof(MallocHeader));
-
-  // Decrease enough such that it can't be split into two chunks. This will lead
-  // to a new pointer.
-  newptr = krealloc(ptr, init_size - 1);
-  ASSERT_NE(newptr, ptr);
-  chunk = MallocHeader::FromPointer(ptr);
-  ASSERT_EQ(chunk->used, 0);
-  chunk2 = MallocHeader::FromPointer(newptr);
-  ASSERT_EQ(chunk2->used, 1);
-  ASSERT_EQ(chunk2->size, init_size - 1 + sizeof(MallocHeader));
+  ASSERT_GE(chunk2->size, init_size + sizeof(MallocHeader));
 
   kfree(newptr);
   ASSERT_EQ(heap_used, GetKernelHeapUsed());
@@ -567,7 +561,7 @@ TEST(New) {
     alignas(1024) int32_t arr[2];
   };
   B *b = new B;  // void *operator new(size_t size, std::align_val_t alignment)
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(B) + sizeof(MallocHeader));
+  ASSERT_GE(GetKernelHeapUsed(), heap_used + sizeof(B) + sizeof(MallocHeader));
   delete b;
   ASSERT_EQ(GetKernelHeapUsed(), heap_used);
 
@@ -575,10 +569,10 @@ TEST(New) {
     uint8_t x, y;
   };
   void *buffer = kmalloc(sizeof(C));
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
+  ASSERT_GE(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
 
   C *c = new (buffer) C;
-  ASSERT_EQ(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
+  ASSERT_GE(GetKernelHeapUsed(), heap_used + sizeof(C) + sizeof(MallocHeader));
 
   c->x = 1;
   c->y = 2;
@@ -1222,11 +1216,8 @@ TEST(VFSRootDir) {
     }
 
     {
-      DebugPrint("start: {}\n", GetKernelHeapUsed());
       const char path[] = "initrd_files/test_user_program.bin";
       File &file = root.mkfile(path);
-      DebugPrint("end: {}\n", GetKernelHeapUsed());
-      return;
       ASSERT_TRUE(root.hasDir("initrd_files"));
       ASSERT_TRUE(
           root.getDir("initrd_files")->hasFile("test_user_program.bin"));

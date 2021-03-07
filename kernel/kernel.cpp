@@ -168,19 +168,14 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
   //-------------------------------------------------------------------------
 
   // FIXME: Find a way to run kernel-specific tests elsewhere instead of at
-  // startup. Perhaps the tests should only be included for debug builds?
+  // startup. Perhaps the tests should only be included for debug builds? At the
+  // very least, most of these tests should be moved into userspace.
   size_t free_pages = GetPhysicalBitmap4M().NumFreePages();
   DebugPrint("free pages: {}\n", free_pages);
   RunTests();
   DebugPrint("free pages: {}\n", GetPhysicalBitmap4M().NumFreePages());
-
-  // FIXME: We should probably uproot all of the allocation code and use buckets
-  // or padding to allocations to force some alignment since somehow, we're
-  // seeing a bunch of unecessary page allocations. In the long run, I would
-  // like to move the concept of a heap out of the kernel for something more
-  // deterministic.
-  // assert(free_pages == GetPhysicalBitmap4M().NumFreePages() &&
-  //       "Tests should not take up any more physical memory.");
+  assert(free_pages == GetPhysicalBitmap4M().NumFreePages() &&
+         "Tests should not take up any more physical memory.");
 
   DebugPrint("# of multiboot modules: {}\n", num_mods);
   assert(num_mods <= 1 &&

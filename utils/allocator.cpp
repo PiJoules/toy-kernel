@@ -1,6 +1,7 @@
 #include <MathUtils.h>
 #include <allocator.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstring>
@@ -14,7 +15,16 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
 
   if (size == 0) return nullptr;
 
+  // Always ensure we're at least aligned to a simple alignment.
+  alignment = std::max(alignment, kMaxAlignment);
+
   size_t realsize = sizeof(MallocHeader) + size;
+
+  // Round up the sizes to a multiple of alignment.
+  auto rem = realsize % alignment;
+  if (rem) realsize += alignment - rem;
+  assert(realsize % alignment == 0);
+
   MallocHeader *chunk = reinterpret_cast<MallocHeader *>(heap_start_);
 
   // See if a given chunk can hold a requested size with a given alignment. In
@@ -24,41 +34,35 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
   //
   // `adjust` represents the number of bytes we can add to the chunk such that
   // the chunk can be aligned to `alignment`.
-  //
-  // TODO: Clean this up since it's hard to read.
   auto CanUseChunk = [realsize, alignment](const MallocHeader *chunk,
-                                           size_t &adjust,
-                                           MallocHeader *last_chunk) {
-    auto size = chunk->size;
-    if (chunk->used || size < realsize) return false;
+                                           size_t &adjust) {
+    if (chunk->used) return false;  // Cannot use a used chunk.
 
-    // Check alignment.
+    if (chunk->size < realsize)
+      return false;  // This chunk cannot hold the requested size.
+
+    // At this point, the chunk is unused and can potentially hold the requested
+    // size, but if it's unaligned, then we can't use it.
     auto addr = reinterpret_cast<uintptr_t>(chunk) + sizeof(MallocHeader);
     adjust = (alignment - (addr % alignment)) % alignment;
-    if (adjust == 0) {
-      // Aligned.
-      return size - realsize >= sizeof(MallocHeader);
-    }
+    if (adjust == 0) return true;  // This pointer will be aligned.
 
-    // We can potentially merge this chunk with the previous one when performing
-    // adjustments, but only if the last chunk is not used.
-    if (last_chunk && last_chunk->used) return false;
+    // If this pointer is not aligned, we can potentially split this chunk into
+    // two, one that's unaligned, and one that's aligned, but only if this is
+    // possible.
+    if (chunk->size < adjust + realsize) return false;
 
-    if (size < realsize + adjust) return false;
-
-    // Unaligned, but there's room to split the chunk into 2 parts.
+    // At this point, the chunk is unaligned, but it can be adjusted.
     return true;
   };
 
   // Keep searching until we find a chunk that's available and can fit the
   // allocation we want.
-  size_t adjust = 0;
-  MallocHeader *last_chunk = nullptr;
-  while (!CanUseChunk(chunk, adjust, last_chunk)) {
+  size_t adjust;
+  while (!CanUseChunk(chunk, adjust)) {
     assert(chunk->size &&
            "Corrupted chunk marked as used but has 0 heap size.");
 
-    last_chunk = chunk;
     chunk = chunk->NextChunk();
 
     assert(chunk <= reinterpret_cast<MallocHeader *>(heap_) &&
@@ -69,38 +73,15 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
     }
   }
 
-  if (adjust && adjust < sizeof(MallocHeader)) {
-    // Because this chunk is not small enough to fit a malloc header, we cannot
-    // split it into an "adjust chunk" and the normal chunk we want. What we can
-    // do instead though is merge this "adjust chunk" with the previous one and
-    // return the new chunk normally. If the previous chunk was used, then this
-    // would imply more of the heap is being used.
-    assert(chunk != heap_start_ &&
-           "No previous chunk before the start of the heap.");
-    assert(last_chunk);
-    assert(last_chunk->NextChunk() == chunk);
-
-    size_t size = chunk->size;
-    assert(size >= sizeof(MallocHeader));
-    assert(size - adjust >= sizeof(MallocHeader));
-
-    last_chunk->size += adjust;
-    assert(!last_chunk->used &&
-           "Cannot merge the adjust chunk with the previous one since this "
-           "will change the heap usage size.");
-
-    chunk = last_chunk->NextChunk();
-    chunk->size = size - adjust;
-    chunk->used = 0;
-  } else if (adjust) {
+  if (adjust) {
+    assert(adjust >= sizeof(MallocHeader) &&
+           "Cannot create a chunk less than sizeof(MallocHeader)");
     // This chunk has enough space, but we need to return an address somewhere
     // inside the chunk that's aligned properly. We will need to split this one
     // into one unaligned chunk followed by one aligned chunk.
     auto *other = chunk->NextChunk(adjust);
     other->size = chunk->size - adjust;
 
-    assert(adjust >= sizeof(MallocHeader) &&
-           "Cannot create a chunk less than sizeof(MallocHeader)");
     chunk->size = adjust;
     chunk->used = 0;
 
@@ -117,15 +98,15 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
     chunk->used = 1;
   } else {
     // Need to create another chunk.
-    auto *other = chunk->NextChunk(realsize);
+    auto *next = chunk->NextChunk(realsize);
 
     if (chunk->size - realsize < sizeof(MallocHeader)) {
       // We cannot split this into two chunks, but that's ok. We can just keep
       // this as one chunk.
       chunk->used = 1;
     } else {
-      other->size = chunk->size - realsize;
-      other->used = 0;
+      next->size = chunk->size - realsize;
+      next->used = 0;
 
       chunk->size = realsize;
       chunk->used = 1;
@@ -169,6 +150,11 @@ void *Allocator::Realloc(void *ptr, size_t size) {
   assert(chunk->used && "Cannot realloc an unmalloc'd pointer");
 
   size_t realsize = size + sizeof(MallocHeader);
+
+  // Round up the sizes to a multiple of alignment.
+  auto rem = realsize % kMaxAlignment;
+  if (rem) realsize += kMaxAlignment - rem;
+  assert(realsize % kMaxAlignment == 0);
 
   if (chunk->size == realsize)
     // Size does not need to change.

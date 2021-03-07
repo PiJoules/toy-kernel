@@ -1,8 +1,9 @@
 #ifndef ALLOCATOR_H_
 #define ALLOCATOR_H_
 
-#include <assert.h>
-#include <stdint.h>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
 
 // The allocator is in charge of providing a malloc/free-like interface.
 
@@ -36,6 +37,7 @@ struct MallocHeader {
   }
 } __attribute__((packed));
 static_assert(sizeof(MallocHeader) == 4, "");
+static_assert(sizeof(MallocHeader) == kMaxAlignment, "");
 
 constexpr size_t kMallocMinSize = sizeof(MallocHeader);
 
@@ -78,10 +80,15 @@ class Allocator {
 
  private:
   void InitializeHeap() {
-    assert(heap_end_ > heap_start_);
+    if (heap_end_) assert(heap_end_ > heap_start_);
 
     // Request just 1 byte for now. This also sets up the first chunk.
     sbrk_(1, heap_);
+    assert(reinterpret_cast<MallocHeader *>(heap_start_)->size ==
+               reinterpret_cast<uint8_t *>(heap_) -
+                   reinterpret_cast<uint8_t *>(heap_start_) &&
+           "The initialized heap should have a single malloc header equal to "
+           "the size of the available heap.");
   }
 
   /**
