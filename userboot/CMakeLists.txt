@@ -47,6 +47,19 @@ set(USER_COMPILE_FLAGS
   -Wno-unused-command-line-argument
   -ftrivial-auto-var-init=pattern)
 
+set(USER_ELF_LINK_LIBS
+  -Wl,--start-group
+  -Wl,--no-whole-archive
+  user_libc
+  user_utils user_libcxx
+  -Wl,--end-group)
+
+set(USER_ELF_LINK_FLAGS
+  -target i386-elf
+  -nostdlib
+  -Wl,--gc-sections
+  -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
+
 set(USER_PROGRAMS "" CACHE INTERNAL "")
 
 function(add_to_initrd binary)
@@ -119,13 +132,13 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 
 # Userboot stage 1. The sole purpose of this is to run Userboot stage 2,
 # which contains the rest of the userboot logic, but in ELF format.
-make_flat_user_binary(userboot userboot.cpp umalloc.cpp)
+make_flat_user_binary(userboot userboot.cpp umalloc.cpp elf.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
 # Userboot stage 2. This continues userboot, but we can run elf binaries,
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
-add_executable(userboot-stage2.debug userboot-stage2.cpp umalloc.cpp)
+add_executable(userboot-stage2.debug userboot-stage2.cpp umalloc.cpp elf.cpp)
 target_compile_options(userboot-stage2.debug
   PRIVATE -fno-exceptions
   PRIVATE -fno-rtti
@@ -133,17 +146,8 @@ target_compile_options(userboot-stage2.debug
   PRIVATE -ffunction-sections
   PRIVATE -target i386)
 target_link_options(userboot-stage2.debug
-  PRIVATE -target i386-elf
-  PRIVATE -nostdlib
-  PRIVATE -Wl,--gc-sections
-  PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
-target_link_libraries(userboot-stage2.debug
-  # This is a hack we can use to add custom linker flags.
-  -Wl,--start-group
-  -Wl,--no-whole-archive
-  user_libc
-  user_utils user_libcxx
-  -Wl,--end-group)
+  PRIVATE ${USER_ELF_LINK_FLAGS})
+target_link_libraries(userboot-stage2.debug ${USER_ELF_LINK_LIBS})
 target_include_directories(userboot-stage2.debug PRIVATE include/)
 target_include_directories(userboot-stage2.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)
 target_include_directories(userboot-stage2.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
@@ -156,6 +160,8 @@ add_custom_target(userboot-stage2 ALL
   VERBATIM)
 
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
+
+add_subdirectory(userspace-tests)
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
 separate_arguments(USER_PROGRAMS_LIST)

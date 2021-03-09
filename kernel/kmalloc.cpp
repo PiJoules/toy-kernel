@@ -6,15 +6,14 @@
 
 namespace {
 
-void *ksbrk_page(size_t n, void *&heap) {
-  uint8_t *&heap_bytes = reinterpret_cast<uint8_t *&>(heap);
+void *ksbrk_page(size_t n, void *heap) {
+  uint8_t *heap_bytes = reinterpret_cast<uint8_t *>(heap);
   if ((heap_bytes + (n * kPageSize4M)) >
       reinterpret_cast<uint8_t *>(KERN_HEAP_END)) {
     // No virtual memory left for kernel heap!
     return nullptr;
   }
 
-  auto *chunk = reinterpret_cast<utils::MallocHeader *>(heap_bytes);
   for (unsigned i = 0; i < n; ++i) {
     // FIXME: We skip the first 4MB because we could still need to read stuff
     // that multiboot inserted in the first 4MB page. Starting from 0 here could
@@ -28,13 +27,10 @@ void *ksbrk_page(size_t n, void *&heap) {
     heap_bytes += kPageSize4M;
   }
 
-  chunk->size = kPageSize4M * n;
-  chunk->used = 0;
-
-  return chunk;
+  return heap_bytes;
 }
 
-void *ksbrk(size_t bytes, void *&heap) {
+void *ksbrk(size_t bytes, void *heap) {
   if (bytes < kPageSize4M) {
     // Always increase by at least 1 page.
     return ksbrk_page(1, heap);

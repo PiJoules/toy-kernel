@@ -1,6 +1,8 @@
 #ifndef ELF_H_
 #define ELF_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -77,6 +79,8 @@ inline bool IsValidElf(const Elf32_Ehdr *hdr) {
 #define PF_W 2       // Writable
 #define PF_R 4       // Readable
 #define PF_MASKPROC  // Unspecified
+
+void LoadElfProgram(const uint8_t *elf_data, void *arg = nullptr);
 
 #ifdef __cplusplus
 }  // extern "C"

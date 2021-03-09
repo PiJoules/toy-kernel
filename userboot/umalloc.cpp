@@ -1,5 +1,7 @@
 #include <allocator.h>
-#include <assert.h>
+
+#include <cassert>
+#include <cstdio>
 
 namespace user {
 
@@ -8,30 +10,27 @@ namespace {
 constexpr size_t kChunkSize = 1024;
 const uint8_t *kHeapTop, *kHeapBottom;
 
-void *usbrk_chunk(size_t n, void *&heap) {
-  uint8_t *&heap_bytes = reinterpret_cast<uint8_t *&>(heap);
+utils::Allocator UserAllocator;
+
+void *usbrk_chunk(size_t n, void *heap) {
+  uint8_t *heap_bytes = reinterpret_cast<uint8_t *>(heap);
   assert(heap_bytes + (n * kChunkSize) <= kHeapTop &&
          "Attempting to allocate beyond the end of the heap.");
-
-  auto *chunk = reinterpret_cast<utils::MallocHeader *>(heap_bytes);
-  heap_bytes += n * kChunkSize;
-
-  chunk->size = kChunkSize * n;
-  chunk->used = 0;
-
-  return chunk;
+  return heap_bytes + n * kChunkSize;
 }
 
 // Just allocate in chunks, similar to what we do in the kernel.
-void *usbrk(size_t n, void *&heap) {
+void *usbrk(size_t n, void *heap) {
+  assert(heap == UserAllocator.getHeap() &&
+         "This should only be called once the heap top limit is reached.");
+  assert(n && "Bad size request");
+
   if (n < kChunkSize) return usbrk_chunk(1, heap);
 
   if (n % kChunkSize == 0) return usbrk_chunk(n / kChunkSize, heap);
 
   return usbrk_chunk(n / kChunkSize + 1, heap);  // Round up.
 }
-
-utils::Allocator UserAllocator;
 
 }  // namespace
 
@@ -58,3 +57,9 @@ void *ucalloc(size_t num, size_t size) {
 }
 
 }  // namespace user
+
+namespace utils {
+
+size_t GetHeapUsed() { return user::UserAllocator.getHeapUsed(); }
+
+}  // namespace utils

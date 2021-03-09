@@ -4,12 +4,12 @@
 #include <kernel.h>
 #include <kmalloc.h>
 #include <ktask.h>
+#include <ktests.h>
 #include <multiboot.h>
 #include <paging.h>
 #include <panic.h>
 #include <serial.h>
 #include <syscall.h>
-#include <tests.h>
 #include <timer.h>
 
 using print::Hex;
@@ -113,10 +113,10 @@ void KernelJumpToUserEntry(uint8_t *vfs_data, size_t vfs_data_size) {
     // Encode the following:
     // |.....................| <- dst_end
     // |.....................|
-    // |.....................| <- vfs data end
+    // |.....................| <- initrd data end
     // |.....................|
-    // |vfs data.............| <- vfs data start
-    // |vfs size             | <- dst_start
+    // |initrd data..........| <- initrd data start
+    // |initrd size          | <- dst_start
     VFSData *vfs = reinterpret_cast<VFSData *>(arg);
     uint8_t *start = reinterpret_cast<uint8_t *>(dst_start);
     uint8_t *end = reinterpret_cast<uint8_t *>(dst_end);

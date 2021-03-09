@@ -1,4 +1,5 @@
 #include <_syscalls.h>
+#include <elf.h>
 #include <umalloc.h>
 #include <userboot.h>
 #include <vfs.h>
@@ -42,16 +43,26 @@ bool TriggerInvalidOpcodeException() {
   return false;
 }
 
-using CmdInfo = std::tuple<const char *, const char *, bool (*)()>;
+using CmdFunc = bool (*)();
+using CmdInfo = std::tuple<const char *, const char *, CmdFunc>;
 
 bool DumpCommands();
 bool Shutdown() { return true; }
+
+vfs::Directory *FileSystem;
+
+bool RunTests() {
+  if (const vfs::File *file = FileSystem->getFile("userspace-tests"))
+    LoadElfProgram(file->getContents().data());
+  return false;
+}
 
 constexpr CmdInfo kCmds[] = {
     {"help", "Dump commands.", DumpCommands},
     {"shutdown", "Exit userboot.", Shutdown},
     {"invalid-opcode", "Trigger an invalid opcode exception",
      TriggerInvalidOpcodeException},
+    {"runtests", "Run userspace tests", RunTests},
 };
 constexpr size_t kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
 
@@ -75,9 +86,6 @@ sys::Handle RunFlatUserBinary(const vfs::Directory &vfs,
   printf("Created thread handle %u\n", handle);
   return handle;
 }
-
-constexpr const size_t kInitHeapSize = kPageSize4M;
-constexpr const int kExitFailure = -1;
 
 }  // namespace
 
@@ -158,12 +166,14 @@ int main(int argc, char **argv) {
 
   // Check starting a user task via syscall.
   printf("Trying test_user_program.bin ...\n");
-  const vfs::Directory *initrd_dir = vfs->getDir("initrd_files");
+  vfs::Directory *initrd_dir = vfs->getDir("initrd_files");
   auto handle1 = RunFlatUserBinary(*initrd_dir, "test_user_program.bin");
   auto handle2 = RunFlatUserBinary(*initrd_dir, "test_user_program.bin");
   sys::DestroyTask(handle1);
   sys::DestroyTask(handle2);
   printf("Finished test_user_program.bin.\n");
+
+  FileSystem = initrd_dir;
 
   auto ShouldShutdown = [](char *buffer) -> bool {
     for (size_t i = 0; i < kNumCmds; ++i) {

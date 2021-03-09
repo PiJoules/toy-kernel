@@ -18,4 +18,7 @@ inline void *NextPage() {
   return PageAddr4M(page + 1);
 }
 
+constexpr const int kExitFailure = -1;
+constexpr const size_t kInitHeapSize = kPageSize4M;
+
 #endif

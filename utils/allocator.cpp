@@ -59,17 +59,39 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
   // Keep searching until we find a chunk that's available and can fit the
   // allocation we want.
   size_t adjust;
+  bool reached_heap_end = false;
   while (!CanUseChunk(chunk, adjust)) {
     assert(chunk->size &&
            "Corrupted chunk marked as used but has 0 heap size.");
-
-    chunk = chunk->NextChunk();
-
     assert(chunk <= reinterpret_cast<MallocHeader *>(heap_) &&
            "Found a chunk that was allocated past the kernel heap limit.");
-    if (chunk == reinterpret_cast<MallocHeader *>(heap_)) {
+
+    // if (chunk != reinterpret_cast<MallocHeader *>(heap_))
+    if (!reached_heap_end) chunk = chunk->NextChunk();
+
+    if (reached_heap_end || chunk == heap_) {
+      reached_heap_end = true;
+
+      uint8_t *old_heap_top = reinterpret_cast<uint8_t *>(heap_);
+
       // Attempt to allocate more if we reached the end of the allocated heap.
-      assert(sbrk_(realsize, heap_) && "No memory left for kernel!");
+      heap_ = sbrk_(realsize, heap_);
+      assert(heap_ && "No memory left for kernel!");
+
+      uint8_t *new_heap_top = reinterpret_cast<uint8_t *>(heap_);
+      assert(new_heap_top > old_heap_top && "Heap did not increase.");
+
+      size_t increase = new_heap_top - old_heap_top;
+      assert(increase >= realsize && "sbrk did not get the requested size.");
+      if (chunk == heap_) {
+        // First time we hit the heap top.
+        chunk->size = increase;
+        chunk->used = 0;
+      } else {
+        // We hit it before, but just didn't get enough size.
+        chunk->size += increase;
+        assert(!chunk->used);
+      }
     }
   }
 
@@ -81,6 +103,7 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
     // into one unaligned chunk followed by one aligned chunk.
     auto *other = chunk->NextChunk(adjust);
     other->size = chunk->size - adjust;
+    assert(other->size && "Created illegal chunk of zero size.");
 
     chunk->size = adjust;
     chunk->used = 0;
@@ -107,6 +130,7 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
     } else {
       next->size = chunk->size - realsize;
       next->used = 0;
+      assert(next->size && "Created illegal chunk of zero size.");
 
       chunk->size = realsize;
       chunk->used = 1;
@@ -170,6 +194,7 @@ void *Allocator::Realloc(void *ptr, size_t size) {
       auto *other = chunk->NextChunk(realsize);
       other->size = chunk->size - realsize;
       other->used = 0;
+      assert(other->size && "Created illegal chunk of zero size.");
 
       chunk->size = realsize;
       heap_used_ -= other->size;

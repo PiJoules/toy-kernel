@@ -43,10 +43,15 @@ constexpr size_t kMallocMinSize = sizeof(MallocHeader);
 
 class Allocator {
  public:
-  // Increment the amount of allocated heap space by `increment` number of
-  // bytes. `heap` is a reference to the current heap top and should be updated
-  // appropriately.
-  using SbrkFunc = void *(*)(size_t increment, void *&heap);
+  // Request the heap top to be moved up by `increment` bytes. `heap` is the
+  // current value of the heap. This function returns the new value of the heap
+  // top after this function is called.
+  //
+  // If we cannot increment from running out of space, nullptr is returned.
+  //
+  // On a successful return (non-nullptr), the new heap top returned can
+  // increase more than what was the request amount.
+  using SbrkFunc = void *(*)(size_t increment, void *heap);
 
   Allocator(void *heap_start, SbrkFunc func, void *heap_end = nullptr)
       : heap_(heap_start),
@@ -83,12 +88,13 @@ class Allocator {
     if (heap_end_) assert(heap_end_ > heap_start_);
 
     // Request just 1 byte for now. This also sets up the first chunk.
-    sbrk_(1, heap_);
-    assert(reinterpret_cast<MallocHeader *>(heap_start_)->size ==
-               reinterpret_cast<uint8_t *>(heap_) -
-                   reinterpret_cast<uint8_t *>(heap_start_) &&
-           "The initialized heap should have a single malloc header equal to "
-           "the size of the available heap.");
+    heap_ = sbrk_(1, heap_);
+    assert(heap_ > heap_start_);
+
+    auto *first_chunk = reinterpret_cast<MallocHeader *>(heap_start_);
+    first_chunk->used = 0;
+    first_chunk->size = reinterpret_cast<uint8_t *>(heap_) -
+                        reinterpret_cast<uint8_t *>(heap_start_);
   }
 
   /**

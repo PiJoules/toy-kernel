@@ -70,6 +70,9 @@ shells. Use `reset` after exiting QEMU to fix this.
 
 Kernel tests are run automatically at startup.
 
+If userboot is provided, then once Userboot Stage 2 is launched and a shell
+opens up, then you can type `runtests` to run userspace tests.
+
 ## Userboot
 
 If an initial ramdisk is provided, the kernel will jump to the start of the
