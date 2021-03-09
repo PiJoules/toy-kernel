@@ -1,6 +1,7 @@
 #ifndef UMALLOC_H_
 #define UMALLOC_H_
 
+#ifdef __cplusplus
 namespace user {
 
 void *umalloc(size_t size);
@@ -12,5 +13,8 @@ void *ucalloc(size_t num, size_t size);
 void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top);
 
 }  // namespace user
+#else
+void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top);
+#endif
 
 #endif

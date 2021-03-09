@@ -1,16 +1,18 @@
 #ifndef USERBOOT_H_
 #define USERBOOT_H_
 
-constexpr const uint32_t kPageSize4M = 0x00400000;
+#include <stdint.h>
 
-inline uint32_t PageIndex4M(const void *addr) {
-  return reinterpret_cast<uint32_t>(addr) >> 22;
-}
-inline void *PageAddr4M(uint32_t page) {
-  return reinterpret_cast<void *>(page << 22);
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-inline void *NextPage() {
+const uint32_t kPageSize4M = 0x00400000;
+
+uint32_t PageIndex4M(const void *addr) { return (uint32_t)(addr) >> 22; }
+void *PageAddr4M(uint32_t page) { return (void *)(page << 22); }
+
+void *NextPage() {
   void *current_addr = __builtin_return_address(0);
 
   // Current page size is 4M.
@@ -18,7 +20,11 @@ inline void *NextPage() {
   return PageAddr4M(page + 1);
 }
 
-constexpr const int kExitFailure = -1;
-constexpr const size_t kInitHeapSize = kPageSize4M;
+const int kExitFailure = -1;
+const size_t kInitHeapSize = kPageSize4M;
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif

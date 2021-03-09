@@ -63,3 +63,15 @@ namespace utils {
 size_t GetHeapUsed() { return user::UserAllocator.getHeapUsed(); }
 
 }  // namespace utils
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void InitializeUserHeap(uint8_t *heap_bottom, uint8_t *heap_top) {
+  return user::InitializeUserHeap(heap_bottom, heap_top);
+}
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif

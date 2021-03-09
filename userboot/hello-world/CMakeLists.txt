@@ -4,10 +4,6 @@
 #
 # This also should help provide a basis for how to build programs out-of-tree.
 #
-# NOTE: At its current state, this hello world program will build, but will not
-# run correctly. This is because the libc mechanisms before jumping into main()
-# still need to be implemented.
-#
 # There are a number of FIXMEs that should be addressed before this is made
 # "simple":
 #
@@ -33,11 +29,14 @@ add_executable(hello-world hello.c
   ${CMAKE_CURRENT_SOURCE_DIR}/../umalloc.cpp)
 
 target_include_directories(hello-world
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include
   PRIVATE ${LIBC_PROJECT_DIR}/include
   PRIVATE ${LIBCXX_PROJECT_DIR}/include
   PRIVATE ${UTILS_PROJECT_DIR}/include)
 
 target_compile_options(hello-world
+  PRIVATE -Wall -Werror
+
   # Note this is only needed for clang. If we're using GCC or another compiler,
   # this flag may not be needed.
   PRIVATE -target i386)

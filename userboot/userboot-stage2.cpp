@@ -57,12 +57,19 @@ bool RunTests() {
   return false;
 }
 
+bool RunHelloWorld() {
+  if (const vfs::File *file = FileSystem->getFile("hello-world"))
+    LoadElfProgram(file->getContents().data());
+  return false;
+}
+
 constexpr CmdInfo kCmds[] = {
     {"help", "Dump commands.", DumpCommands},
     {"shutdown", "Exit userboot.", Shutdown},
     {"invalid-opcode", "Trigger an invalid opcode exception",
      TriggerInvalidOpcodeException},
     {"runtests", "Run userspace tests", RunTests},
+    {"hello-world", "Run hello world program", RunHelloWorld},
 };
 constexpr size_t kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
 
