@@ -162,6 +162,7 @@ add_custom_target(userboot-stage2 ALL
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
 
 add_subdirectory(userspace-tests)
+add_subdirectory(hello-world)
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
 separate_arguments(USER_PROGRAMS_LIST)
