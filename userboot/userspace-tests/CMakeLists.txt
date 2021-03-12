@@ -6,7 +6,7 @@ add_custom_target(userspace-tests ALL
   DEPENDS userspace-tests.debug
   VERBATIM)
 
-add_executable(userspace-tests.debug userspace-tests.cpp ../umalloc.cpp)
+add_executable(userspace-tests.debug userspace-tests.cpp)
 target_compile_options(userspace-tests.debug
   PRIVATE ${USER_COMPILE_FLAGS})
 target_link_options(userspace-tests.debug

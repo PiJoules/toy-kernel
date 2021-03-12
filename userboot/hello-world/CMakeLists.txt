@@ -24,9 +24,9 @@
 #   $ cp hello path/to/initrd  # Then create the initial ramdisk with this.
 
 enable_language(C)
+set(CMAKE_C_STANDARD 11)
 
-add_executable(hello-world hello.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/../umalloc.cpp)
+add_executable(hello-world hello.c)
 
 target_include_directories(hello-world
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include
@@ -36,6 +36,7 @@ target_include_directories(hello-world
 
 target_compile_options(hello-world
   PRIVATE -Wall -Werror
+  PRIVATE -fno-PIC
 
   # Note this is only needed for clang. If we're using GCC or another compiler,
   # this flag may not be needed.
@@ -44,6 +45,8 @@ target_compile_options(hello-world
 target_link_options(hello-world
   PRIVATE -target i386
   PRIVATE -nostdlib
+  PRIVATE -fuse-ld=lld
+  PRIVATE -Wl,-no-pie
   PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/../user_elf_link.ld)
 
 target_link_libraries(hello-world

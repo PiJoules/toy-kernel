@@ -30,6 +30,8 @@ else()
 endif()
 
 set(USER_COMPILE_FLAGS
+  # FIXME: This is needed since clang is the default compiler, but technically
+  # this should be passed through "CMAKE_CXX_FLAGS".
   -target i386
   -nostdlib
   -nostdinc
@@ -44,6 +46,7 @@ set(USER_COMPILE_FLAGS
   -ffunction-sections
   -Wall
   -Werror
+  -fno-PIC
   -Wno-unused-command-line-argument
   -ftrivial-auto-var-init=pattern)
 
@@ -58,6 +61,8 @@ set(USER_ELF_LINK_FLAGS
   -target i386-elf
   -nostdlib
   -Wl,--gc-sections
+  -fuse-ld=lld
+  -Wl,-no-pie
   -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
@@ -132,21 +137,15 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 
 # Userboot stage 1. The sole purpose of this is to run Userboot stage 2,
 # which contains the rest of the userboot logic, but in ELF format.
-make_flat_user_binary(userboot userboot.cpp umalloc.cpp elf.cpp)
+make_flat_user_binary(userboot userboot.cpp elf.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
 # Userboot stage 2. This continues userboot, but we can run elf binaries,
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
-add_executable(userboot-stage2.debug userboot-stage2.cpp umalloc.cpp elf.cpp)
-target_compile_options(userboot-stage2.debug
-  PRIVATE -fno-exceptions
-  PRIVATE -fno-rtti
-  PRIVATE -fdata-sections
-  PRIVATE -ffunction-sections
-  PRIVATE -target i386)
-target_link_options(userboot-stage2.debug
-  PRIVATE ${USER_ELF_LINK_FLAGS})
+add_executable(userboot-stage2.debug userboot-stage2.cpp elf.cpp)
+target_compile_options(userboot-stage2.debug PRIVATE ${USER_COMPILE_FLAGS})
+target_link_options(userboot-stage2.debug PRIVATE ${USER_ELF_LINK_FLAGS})
 target_link_libraries(userboot-stage2.debug ${USER_ELF_LINK_LIBS})
 target_include_directories(userboot-stage2.debug PRIVATE include/)
 target_include_directories(userboot-stage2.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)

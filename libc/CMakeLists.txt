@@ -9,15 +9,17 @@ set(COMMON_SRCS
   assert.cpp
   ctype.cpp
   stdlib.cpp
-  printf.cpp
   stacktrace.cpp
   string.cpp
-  type.cpp
-  crt0.S)
+  type.cpp)
 
 set(KERNEL_SRCS "")
 
 set(USER_SRCS
+  crt0.S
+  umalloc.cpp
+  pre-main.cpp
+  printf.cpp
   _syscalls.cpp)
 
 # FIXME: We should not assume the directory is adjascent to this one.

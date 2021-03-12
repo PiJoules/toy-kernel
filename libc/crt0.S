@@ -9,11 +9,18 @@ _start:
   pushl %esp  // argv
   pushl $1  // argc
 
+  // pre_main() sets up stuff you would normally expect to be useable by main(),
+  // like the heap.
+  call pre_main
+  test %eax, %eax
+  jnz end
+
   call main
 
   add $8, %esp
 
   // Call the task exit syscall and wait.
   mov $1, %eax
+end:
   int $0x80
   jmp .

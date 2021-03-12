@@ -6,13 +6,9 @@
 
 #include <cstdio>
 
-extern bool __use_debug_log;
-
 extern "C" uint8_t __binary_start, __binary_end;
 
 extern "C" int __user_main(void *stack) {
-  __use_debug_log = true;
-
   printf("\n=== USERBOOT STAGE 1 ===\n\n");
   printf(
       "  This program is meant to simply run Userboot Stage 2, which \n"

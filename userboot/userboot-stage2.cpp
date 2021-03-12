@@ -8,8 +8,6 @@
 #include <cstring>
 #include <tuple>
 
-extern bool __use_debug_log;
-
 namespace {
 
 constexpr char CR = 13;  // Carriage return
@@ -97,49 +95,11 @@ sys::Handle RunFlatUserBinary(const vfs::Directory &vfs,
 }  // namespace
 
 int main(int argc, char **argv) {
-  // FIXME: This should be handled from libc setup.
-  __use_debug_log = true;
-
   printf("\n=== USERBOOT STAGE 2 ===\n\n");
   printf(
       "  This contains the rest of the userboot code. Userboot just simply \n"
       "  launches a user shell that can be used for running various \n"
       "  programs.\n\n");
-
-  // Allocate space for the heap on the page immediately after where this is
-  // mapped.
-  // TODO: Formalize this more. Setup of the heap and malloc should be the duty
-  // of libc.
-  void *heap_start = NextPage();
-  printf("heap_start: %p\n", heap_start);
-  auto val = sys_map_page(heap_start);
-  switch (val) {
-    case MAP_UNALIGNED_ADDR:
-      printf(
-          "Attempting to map virtual address %p which is not aligned to "
-          "page.\n",
-          heap_start);
-      return kExitFailure;
-    case MAP_ALREADY_MAPPED:
-      printf("Attempting to map virtual address %p which is already mapped.\n",
-             heap_start);
-      return kExitFailure;
-    case MAP_OOM:
-      printf("No more physical memory available!\n");
-      return kExitFailure;
-    default:
-      printf("Allocated heap page at %p.\n", heap_start);
-  }
-
-  // Temporary heap. This is the same strategy we use in userboot stage 1, but
-  // we should really have libc establish the heap.
-  uint8_t *heap_bottom = reinterpret_cast<uint8_t *>(heap_start);
-  uint8_t *heap_top = heap_bottom + kInitHeapSize;
-
-  // FIXME: This should be handled from libc setup.
-  user::InitializeUserHeap(heap_bottom, heap_top);
-  printf("Initialized userboot stage 2 heap: %p - %p (%u bytes)\n", heap_bottom,
-         heap_top, kInitHeapSize);
 
   printf("argc: %d\n", argc);
   printf("argv: %p\n", argv);

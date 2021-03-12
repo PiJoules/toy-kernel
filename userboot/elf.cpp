@@ -14,6 +14,8 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
 
   const auto *p_entry =
       reinterpret_cast<const Elf32_Phdr *>(elf_data + hdr->e_phoff);
+  size_t start_offset = 0;
+  size_t end_offset = 0;
   for (int i = 0; i < hdr->e_phnum; ++i, ++p_entry) {
     if (p_entry->p_type != PT_LOAD) continue;
 
@@ -24,22 +26,39 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
       continue;
     }
 
-    // Get the first one that has executable code.
-    if (!(p_entry->p_flags & PF_X)) continue;
+    size_t offset = p_entry->p_offset;
+    size_t size = p_entry->p_filesz;
+    printf("LOAD segment Offset: %x, VirtAddr: %p, filesz: %x\n", offset,
+           (void *)v_begin, size);
 
-    printf("v_begin: %x\n", v_begin);
-    printf("offset to start of elf: %x\n", p_entry->p_offset);
-    printf("size: %u\n", p_entry->p_filesz);
+    if (!size) {
+      printf("Skipping segment of size 0\n");
+      continue;
+    }
 
-    const uint8_t *start = elf_data + p_entry->p_offset;
-    printf("eip[0]: %x\n", start[0]);
+    if (end_offset && end_offset > offset + size) {
+      printf(
+          "WARNING: The next LOAD segment does not come after the previous "
+          "load (%x + %x < %x).\n",
+          offset, size, end_offset);
+      __builtin_trap();
+    }
 
-    sys::Handle handle =
-        sys::CreateTask(elf_data + p_entry->p_offset, p_entry->p_filesz, arg);
-    printf("Created handle %u for elf file\n", handle);
-    sys::DestroyTask(handle);
+    if (!start_offset) {
+      start_offset = p_entry->p_offset;
+      assert(p_entry->p_flags & PF_X &&
+             "Expected the first LOAD segment to be executable (since .text "
+             "should be the first section in the binary)");
+      assert(v_begin == USER_START &&
+             "Expected the first LOAD segment to start at USER_START");
+    }
 
-    // Stop after loading only the first one.
-    return;
+    end_offset = p_entry->p_offset + p_entry->p_filesz;
   }
+
+  assert(start_offset && end_offset && end_offset > start_offset);
+  size_t cpysize = end_offset - start_offset;
+  sys::Handle handle = sys::CreateTask(elf_data + start_offset, cpysize, arg);
+  printf("Created handle %u for elf file\n", handle);
+  sys::DestroyTask(handle);
 }

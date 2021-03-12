@@ -4,10 +4,10 @@ which was referenced many times when building this. Thanks to the devs on them.
 
 ## (Minimum) Requirements
 
-- Clang 9.0.0
+- Clang 11.0.0
   - `clang` is nice because it doesn't require building a full cross-compiler
     toolchain.
-- ld 2.34
+- lld 11.0.0
 - CMake 3.15.4
 - tar 1.32
   - Used for making the filesystem used by userboot.
