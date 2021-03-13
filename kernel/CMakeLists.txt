@@ -6,24 +6,11 @@ enable_language(CXX)
 
 add_library(asm_objs STATIC boot.S gdt.S interrupt.S task.S)
 target_compile_options(asm_objs
-  PRIVATE -target i386)
+  PRIVATE -target i386-elf)
 
-add_library(cpp_objs STATIC
-  descriptortables.cpp
-  isr.cpp
-  kernel.cpp
-  keyboard.cpp
-  kmalloc.cpp
-  paging.cpp
-  panic.cpp
-  serial.cpp
-  syscall.cpp
-  task.cpp
-  tests.cpp
-  timer.cpp)
-target_include_directories(cpp_objs PRIVATE include/)
 set(KERNEL_COMPILE_FLAGS
   -target i386
+  -fno-PIC
   -ffreestanding
   -Wall
   -Wextra
@@ -40,9 +27,7 @@ set(KERNEL_COMPILE_FLAGS
   -UNDEBUG  # We keep all assert()s
 
   # This is needed for stack tracing.
-  -fno-omit-frame-pointer
-
-  -nostdlib)
+  -fno-omit-frame-pointer)
 
 # FIXME: We should not assume the directory is adjascent to this one.
 set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
@@ -58,12 +43,6 @@ add_subdirectory(${LIBCXX_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_libcxx
 set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
 set(BUILD_KERNEL_UTILS 1)
 add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/kernel_utils)
-
-target_compile_options(cpp_objs PRIVATE ${KERNEL_COMPILE_FLAGS})
-target_include_directories(cpp_objs PRIVATE ${LIBC_PROJECT_DIR}/include/)
-target_include_directories(cpp_objs PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-target_include_directories(cpp_objs PRIVATE ${UTILS_PROJECT_DIR}/include/)
-target_compile_definitions(cpp_objs PRIVATE KERNEL)
 
 # TODO: Move this to a user program.
 ## The object file provided by this will provided the symbols needed for fonts
@@ -81,24 +60,40 @@ target_compile_definitions(cpp_objs PRIVATE KERNEL)
 #  COMMENT "Create font object file"
 #  VERBATIM)
 
-# Creates a debug version of the kernel.
-add_custom_target(${KERNEL}.debug ALL
-  COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${CMAKE_SOURCE_DIR}/kernel/link.ld
-          -o ${KERNEL}.debug
-          --gc-sections
-          --start-group
+add_executable(${KERNEL}.debug
+  descriptortables.cpp
+  isr.cpp
+  kernel.cpp
+  kmalloc.cpp
+  paging.cpp
+  panic.cpp
+  serial.cpp
+  syscall.cpp
+  task.cpp
+  tests.cpp
+  timer.cpp)
+target_compile_options(${KERNEL}.debug PRIVATE ${KERNEL_COMPILE_FLAGS})
+target_include_directories(${KERNEL}.debug PRIVATE include/)
+target_include_directories(${KERNEL}.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)
+target_include_directories(${KERNEL}.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
+target_include_directories(${KERNEL}.debug PRIVATE ${UTILS_PROJECT_DIR}/include/)
+target_compile_definitions(${KERNEL}.debug PRIVATE KERNEL)
+target_link_options(${KERNEL}.debug
+  PRIVATE -target i386-elf
+  PRIVATE -fuse-ld=lld
+  PRIVATE -T ${CMAKE_SOURCE_DIR}/kernel/link.ld
+  PRIVATE -nostdlib
+  PRIVATE -Wl,-no-pie
+  PRIVATE -Wl,--gc-sections)
+target_link_libraries(${KERNEL}.debug
+  -Wl,--start-group
+  -Wl,--no-whole-archive
+  asm_objs
+  kernel_libc
+  kernel_libcxx
+  kernel_utils
+  -Wl,--end-group)
 
-          --no-whole-archive
-          $<TARGET_FILE:asm_objs>
-          $<TARGET_FILE:cpp_objs>
-          $<TARGET_FILE:kernel_libc>
-          $<TARGET_FILE:kernel_libcxx>
-          $<TARGET_FILE:kernel_utils>
-
-          --end-group
-  COMMENT "Link ${KERNEL}.debug"
-  DEPENDS asm_objs cpp_objs kernel_libc kernel_libcxx kernel_utils
-  VERBATIM)
 
 # Creates the stripped version without debuginfo.
 add_custom_target(${KERNEL} ALL
