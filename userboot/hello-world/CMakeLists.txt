@@ -31,28 +31,9 @@ enable_language(C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(hello-world hello.c)
-
-target_compile_options(hello-world
-  # We do not yet support PIC.
-  PRIVATE -fno-PIC)
-
-target_link_options(hello-world
-  # Do not use any system default library. This will manually be linked in.
-  PRIVATE -nostdlib
-
-  # We do not yet support PIC.
-  PRIVATE -Wl,-no-pie
-
-  # We will need to place specific sections at specific addresses.
-  PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/../user_elf_link.ld)
-
-target_link_libraries(hello-world
-  # Link in the necessary files.
-  PRIVATE -Wl,--start-group
-          -Wl,--no-whole-archive
-          user_libc
-          user_utils
-          -Wl,--end-group)
+target_compile_options(hello-world PRIVATE ${USER_C_FLAGS})
+target_link_options(hello-world PRIVATE ${USER_LINK_FLAGS})
+target_link_libraries(hello-world PRIVATE sdk_c_static)
 
 # Add to the initial ramdisk.
 add_to_initrd(${CMAKE_CURRENT_BINARY_DIR}/hello-world)

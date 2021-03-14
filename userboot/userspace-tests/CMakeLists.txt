@@ -11,7 +11,7 @@ target_compile_options(userspace-tests.debug
   PRIVATE ${USER_COMPILE_FLAGS})
 target_link_options(userspace-tests.debug
   PRIVATE ${USER_ELF_LINK_FLAGS})
-target_link_libraries(userspace-tests.debug ${USER_ELF_LINK_LIBS})
+target_link_libraries(userspace-tests.debug sdk_cxx_static)
 target_include_directories(userspace-tests.debug
   PRIVATE include/
   PRIVATE ../include/  # userboot includes

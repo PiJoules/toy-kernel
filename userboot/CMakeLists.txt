@@ -29,6 +29,25 @@ else()
   set(SHOULD_COPY_INITRD false)
 endif()
 
+# Flags needed for compiling C source files to object files.
+set(USER_C_FLAGS
+  -fno-PIC)
+
+# Flags needed for compiling CXX source files to object files.
+set(USER_CXX_FLAGS
+  -fno-PIC)
+
+# Flags needed for linking object files to a final executable.
+set(USER_LINK_FLAGS
+  # Do not use any system default library. This will manually be linked in.
+  -nostdlib
+
+  # We do not yet support PIC.
+  -Wl,-no-pie
+
+  # We will need to place specific sections at specific addresses.
+  -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
+
 set(USER_COMPILE_FLAGS
   -fno-stack-protector
   -g
@@ -36,21 +55,13 @@ set(USER_COMPILE_FLAGS
   -fno-rtti
   -fdata-sections
   -ffunction-sections
-  -fno-PIC
-  -ftrivial-auto-var-init=pattern)
-
-set(USER_ELF_LINK_LIBS
-  -Wl,--start-group
-  -Wl,--no-whole-archive
-  user_libc
-  user_utils user_libcxx
-  -Wl,--end-group)
+  -ftrivial-auto-var-init=pattern
+  ${USER_CXX_FLAGS})
 
 set(USER_ELF_LINK_FLAGS
-  -nostdlib
   -Wl,--gc-sections
-  -Wl,-no-pie
-  -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
+  -Wl,--fatal-warnings
+  ${USER_LINK_FLAGS})
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
 
@@ -125,13 +136,15 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 make_flat_user_binary(userboot userboot.cpp elf.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
+add_subdirectory(sdk)
+
 # Userboot stage 2. This continues userboot, but we can run elf binaries,
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
 add_executable(userboot-stage2.debug userboot-stage2.cpp elf.cpp)
 target_compile_options(userboot-stage2.debug PRIVATE ${USER_COMPILE_FLAGS})
 target_link_options(userboot-stage2.debug PRIVATE ${USER_ELF_LINK_FLAGS})
-target_link_libraries(userboot-stage2.debug ${USER_ELF_LINK_LIBS})
+target_link_libraries(userboot-stage2.debug sdk_cxx_static)
 target_include_directories(userboot-stage2.debug PRIVATE include/)
 target_include_directories(userboot-stage2.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)
 target_include_directories(userboot-stage2.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
