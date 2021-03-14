@@ -49,8 +49,10 @@ void TaskMemcpy(Task &task, Task &other_task, void *dst, const void *src,
     vaddr_offset = 0;
   } else {
     vaddr_page = PageAddr4M(PageIndex4M(task_vaddr));
-    vaddr_offset = reinterpret_cast<const uint8_t *>(task_vaddr) -
-                   reinterpret_cast<const uint8_t *>(vaddr_page);
+    assert(task_vaddr > vaddr_page);
+    vaddr_offset =
+        static_cast<size_t>(reinterpret_cast<const uint8_t *>(task_vaddr) -
+                            reinterpret_cast<const uint8_t *>(vaddr_page));
   }
 
   void *paddr = task.getPageDirectory().GetPhysicalAddr(vaddr_page);

@@ -3,7 +3,7 @@
 #define INTERRUPT "$0x80"
 #define RET_TYPE int32_t
 
-uint32_t sys_debug_print(const char *str) {
+int32_t sys_debug_print(const char *str) {
   RET_TYPE a;
   asm volatile("int " INTERRUPT : "=a"(a) : "0"(0), "b"((uint32_t)str));
   return a;

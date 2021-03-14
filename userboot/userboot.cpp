@@ -66,7 +66,10 @@ extern "C" int __user_main(void *stack) {
 
   printf("entry binary start: %p\n", &__binary_start);
   printf("entry binary end: %p\n", &__binary_end);
-  size_t entry_binary_size = &__binary_end - &__binary_start;
+  assert(&__binary_end > &__binary_start);
+  // FIXME: This should be ptrdiff_t.
+  size_t entry_binary_size =
+      static_cast<size_t>(&__binary_end - &__binary_start);
   printf("entry binary size: %u\n", entry_binary_size);
 
   size_t vfs_size = initrd_size - entry_binary_size;

@@ -30,9 +30,6 @@ else()
 endif()
 
 set(USER_COMPILE_FLAGS
-  # FIXME: This is needed since clang is the default compiler, but technically
-  # this should be passed through "CMAKE_CXX_FLAGS".
-  -target i386
   -nostdlib
   -nostdinc
   -fno-builtin
@@ -44,8 +41,6 @@ set(USER_COMPILE_FLAGS
   -fno-rtti
   -fdata-sections
   -ffunction-sections
-  -Wall
-  -Werror
   -fno-PIC
   -Wno-unused-command-line-argument
   -ftrivial-auto-var-init=pattern)
@@ -58,10 +53,8 @@ set(USER_ELF_LINK_LIBS
   -Wl,--end-group)
 
 set(USER_ELF_LINK_FLAGS
-  -target i386-elf
   -nostdlib
   -Wl,--gc-sections
-  -fuse-ld=lld
   -Wl,-no-pie
   -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
 
@@ -91,8 +84,6 @@ set(BUILD_USER_UTILS 1)
 add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_utils_build)
 
 add_library(bootstrap_lib STATIC start_user_program.S)
-target_compile_options(bootstrap_lib
-  PRIVATE -target i386)
 
 # All source files are passed via ARGN.
 function(make_flat_user_binary name)

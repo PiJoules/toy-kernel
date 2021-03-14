@@ -5,19 +5,10 @@ project(toy-kernel-kernel)
 enable_language(CXX)
 
 add_library(asm_objs STATIC boot.S gdt.S interrupt.S task.S)
-target_compile_options(asm_objs
-  PRIVATE -target i386-elf)
 
 set(KERNEL_COMPILE_FLAGS
-  -target i386
   -fno-PIC
   -ffreestanding
-  -Wall
-  -Wextra
-  -Werror
-  -Wconversion
-  -Wno-sign-compare
-  -Wno-sign-conversion
   -fno-exceptions
   -fno-rtti
   -ftrivial-auto-var-init=pattern
@@ -79,8 +70,6 @@ target_include_directories(${KERNEL}.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include
 target_include_directories(${KERNEL}.debug PRIVATE ${UTILS_PROJECT_DIR}/include/)
 target_compile_definitions(${KERNEL}.debug PRIVATE KERNEL)
 target_link_options(${KERNEL}.debug
-  PRIVATE -target i386-elf
-  PRIVATE -fuse-ld=lld
   PRIVATE -T ${CMAKE_SOURCE_DIR}/kernel/link.ld
   PRIVATE -nostdlib
   PRIVATE -Wl,-no-pie

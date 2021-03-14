@@ -81,7 +81,7 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
       uint8_t *new_heap_top = reinterpret_cast<uint8_t *>(heap_);
       assert(new_heap_top > old_heap_top && "Heap did not increase.");
 
-      size_t increase = new_heap_top - old_heap_top;
+      size_t increase = static_cast<size_t>(new_heap_top - old_heap_top);
       assert(increase >= realsize && "sbrk did not get the requested size.");
       if (chunk == heap_) {
         // First time we hit the heap top.

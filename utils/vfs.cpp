@@ -66,7 +66,8 @@ size_t oct2bin(const char *str, size_t size) {
   const char *c = str;
   while (size-- > 0) {
     n *= 8;
-    n += *c - '0';
+    assert(*c >= '0');
+    n += static_cast<size_t>(*c - '0');
     c++;
   }
   return n;

@@ -27,7 +27,8 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
     }
 
     size_t offset = p_entry->p_offset;
-    size_t size = p_entry->p_filesz;
+    assert(p_entry->p_filesz >= 0);
+    size_t size = static_cast<size_t>(p_entry->p_filesz);
     printf("LOAD segment Offset: %x, VirtAddr: %p, filesz: %x\n", offset,
            (void *)v_begin, size);
 
@@ -53,7 +54,7 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
              "Expected the first LOAD segment to start at USER_START");
     }
 
-    end_offset = p_entry->p_offset + p_entry->p_filesz;
+    end_offset = p_entry->p_offset + size;
   }
 
   assert(start_offset && end_offset && end_offset > start_offset);

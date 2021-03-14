@@ -48,12 +48,13 @@ class PointerIterator {
     return ptr_ >= other.ptr_;
   }
 
-  size_t operator-(const PointerIterator<T> &other) const {
+  int32_t operator-(const PointerIterator<T> &other) const {
     return ptr_ - other.ptr_;
   }
   PointerIterator<T> operator-(int64_t i) const { return ptr_ - i; }
 
   PointerIterator<T> operator+(int i) const { return ptr_ + i; }
+  PointerIterator<T> operator+(size_t i) const { return ptr_ + i; }
 
  private:
   T *ptr_;

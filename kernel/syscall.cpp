@@ -132,7 +132,7 @@ void SyscallHandler(X86Registers *regs) {
       : "=a"(ret)
       : "r"(regs->edi), "r"(regs->esi), "r"(regs->edx), "r"(regs->ecx),
         "r"(regs->ebx), "r"(syscall));
-  regs->eax = ret;
+  regs->eax = static_cast<uint32_t>(ret);
 }
 
 }  // namespace

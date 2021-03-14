@@ -36,7 +36,9 @@ class string {
   }
 
   string(ext::PointerIterator<char> start, ext::PointerIterator<char> last)
-      : string(start.get(), last - start) {}
+      : string(start.get(), static_cast<size_t>(last - start)) {
+    assert(last >= start);
+  }
 
   ~string() { free(data_); }
 
@@ -101,10 +103,10 @@ class string {
 
     if (last > end()) last = end();
 
-    size_t remaining = end() - last;
+    size_t remaining = static_cast<size_t>(end() - last);
     memmove(first.get(), last.get(), remaining);
     *(first + remaining) = 0;
-    size_ -= (last - first);
+    size_ -= static_cast<size_t>(last - first);
   }
 
  private:

@@ -93,8 +93,9 @@ class Allocator {
 
     auto *first_chunk = reinterpret_cast<MallocHeader *>(heap_start_);
     first_chunk->used = 0;
-    first_chunk->size = reinterpret_cast<uint8_t *>(heap_) -
-                        reinterpret_cast<uint8_t *>(heap_start_);
+    first_chunk->size =
+        static_cast<size_t>(reinterpret_cast<uint8_t *>(heap_) -
+                            reinterpret_cast<uint8_t *>(heap_start_));
   }
 
   /**

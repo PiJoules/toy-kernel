@@ -7,7 +7,7 @@
 __BEGIN_CDECLS
 
 bool sys_debug_read(char *c);
-uint32_t sys_debug_print(const char *str);
+int32_t sys_debug_print(const char *str);
 void sys_debug_put(char);
 void sys_exit_task();
 
@@ -32,7 +32,7 @@ __END_CDECLS
 namespace sys {
 
 inline bool DebugRead(char &c) { return sys_debug_read(&c); }
-inline uint32_t DebugPrint(const char *str) { return sys_debug_print(str); }
+inline int32_t DebugPrint(const char *str) { return sys_debug_print(str); }
 inline void DebugPut(char c) { return sys_debug_put(c); }
 inline void ExitTask() { return sys_exit_task(); }
 

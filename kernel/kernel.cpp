@@ -120,7 +120,8 @@ void KernelJumpToUserEntry(uint8_t *vfs_data, size_t vfs_data_size) {
     VFSData *vfs = reinterpret_cast<VFSData *>(arg);
     uint8_t *start = reinterpret_cast<uint8_t *>(dst_start);
     uint8_t *end = reinterpret_cast<uint8_t *>(dst_end);
-    size_t space = end - start;
+    assert(end > start);
+    size_t space = static_cast<size_t>(end - start);
 
     assert(space >= vfs->size + sizeof(size_t) &&
            "Not enough space in shared user region to hold the vfs data.");
@@ -183,9 +184,10 @@ extern "C" void kernel_main(const Multiboot *multiboot) {
          "ramdisk");
 
   if (num_mods) {
+    assert(mod_end > mod_start);
     DebugPrint("vfs size: {} bytes\n", mod_end - mod_start);
 
-    KernelJumpToUserEntry(mod_start, mod_end - mod_start);
+    KernelJumpToUserEntry(mod_start, static_cast<size_t>(mod_end - mod_start));
 
     kfree(mod_start);
   } else {

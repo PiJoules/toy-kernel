@@ -886,7 +886,7 @@ TEST(BitVectorTest) {
   BitVector v;
   ASSERT_TRUE(v.empty());
 
-  for (auto i = 0; i < 32; ++i) {
+  for (size_t i = 0; i < 32; ++i) {
     v.push_back(1);
     ASSERT_EQ(v.size(), i + 1);
     ASSERT_TRUE(v.get(i));
@@ -908,7 +908,7 @@ TEST(BitVectorTest) {
   v.set(32, 1);
   ASSERT_EQ(v.getAs<uint64_t>(), (static_cast<uint64_t>(UINT32_MAX) << 1) + 1);
 
-  for (auto i = 33; i < 63; ++i) {
+  for (size_t i = 33; i < 63; ++i) {
     v.push_back(1);
     ASSERT_EQ(v.size(), i + 1);
     ASSERT_TRUE(v.get(i));
@@ -927,9 +927,9 @@ TEST(BitVectorTest) {
   ASSERT_EQ(v.size(), 65);
 
   for (int i = 64; i >= 0; --i) {
-    ASSERT_TRUE(v.get(i));
-    v.set(i, 0);
-    ASSERT_FALSE(v.get(i));
+    ASSERT_TRUE(v.get(static_cast<size_t>(i)));
+    v.set(static_cast<size_t>(i), 0);
+    ASSERT_FALSE(v.get(static_cast<size_t>(i)));
   }
 
   ASSERT_EQ(v.size(), 65);

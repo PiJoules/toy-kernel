@@ -29,7 +29,7 @@ class vector {
    * This is undefined if [start, end) is invalid.
    */
   vector(const T *start, const T *end)
-      : size_(end - start),
+      : size_(static_cast<size_t>(end - start)),
         capacity_(std::max(InitCapacity, size_)),
         data_(ext::malloc<T>(capacity_)) {
     assert(start <= end && "Invalid pointer range");
@@ -112,9 +112,11 @@ class vector {
         it->~T();
 
         // Move data back.
-        size_t pos = it - begin();
-        size_t remaining = end() - (it + 1);
-        memmove(data_ + pos, data_ + pos + 1, remaining * sizeof(T));
+        int32_t pos = it - begin();
+        int32_t remaining = end() - (it + 1);
+        assert(remaining >= 0);
+        memmove(data_ + pos, data_ + pos + 1,
+                static_cast<size_t>(remaining) * sizeof(T));
 
         DecrementSize();
         return;

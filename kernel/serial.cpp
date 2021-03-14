@@ -26,7 +26,7 @@ void Initialize() {
 
 bool TryRead(char &c) {
   if (Received()) {
-    c = Read8(kCOM1);
+    c = static_cast<char>(Read8(kCOM1));
     return true;
   }
   return false;
@@ -34,7 +34,7 @@ bool TryRead(char &c) {
 
 bool TryWrite(char c) {
   if (IsTransmitEmpty()) {
-    Write8(kCOM1, c);
+    Write8(kCOM1, static_cast<uint8_t>(c));
     return true;
   }
   return false;
@@ -42,12 +42,12 @@ bool TryWrite(char c) {
 
 char AtomicRead() {
   while (!Received()) {}
-  return Read8(kCOM1);
+  return static_cast<char>(Read8(kCOM1));
 }
 
 void AtomicPut(char c) {
   while (!IsTransmitEmpty()) {}
-  Write8(kCOM1, c);
+  Write8(kCOM1, static_cast<uint8_t>(c));
 }
 
 void AtomicWrite(const char *str) {

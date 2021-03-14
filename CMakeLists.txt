@@ -5,6 +5,23 @@ cmake_minimum_required(VERSION 3.15.4)
 project(toy-kernel)
 enable_language(CXX ASM)
 
+# TODO: These add project-wide flags to everything, but once we separate the
+# subdirectories into individual repos, we should copy these flags into those
+# respective projects.
+# Add global flags.
+add_compile_options(
+  -Wall -Werror -Wextra -Wconversion
+  -Wno-sign-compare)
+
+# Add compiler-specific flags.
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+    CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  add_compile_options(-target i386-elf)
+  add_link_options(
+    -target i386-elf
+    -fuse-ld=lld)
+endif()
+
 set(KERNEL kernel)
 set(IMAGE myos.iso)
 

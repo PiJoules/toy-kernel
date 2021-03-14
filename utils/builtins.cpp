@@ -8,6 +8,9 @@
 
 #define clz(a) __builtin_clzll(a)
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-conversion"
+
 extern "C" {
 
 uint64_t __udivdi3(uint64_t n, uint64_t d) {
@@ -66,6 +69,8 @@ uint64_t __umoddi3(uint64_t n, uint64_t d) {
 }
 
 }  // extern "C"
+
+#pragma clang diagnostic pop
 
 #else
 #warning "Various builtin functions defined in " __FILE__ "may need to be implemented for this compiler"
