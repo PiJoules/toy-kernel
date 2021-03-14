@@ -30,19 +30,13 @@ else()
 endif()
 
 set(USER_COMPILE_FLAGS
-  -nostdlib
-  -nostdinc
-  -fno-builtin
   -fno-stack-protector
-  -nostartfiles
-  -nodefaultlibs
   -g
   -fno-exceptions
   -fno-rtti
   -fdata-sections
   -ffunction-sections
   -fno-PIC
-  -Wno-unused-command-line-argument
   -ftrivial-auto-var-init=pattern)
 
 set(USER_ELF_LINK_LIBS
