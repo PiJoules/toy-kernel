@@ -63,10 +63,7 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
   while (!CanUseChunk(chunk, adjust)) {
     assert(chunk->size &&
            "Corrupted chunk marked as used but has 0 heap size.");
-    assert(chunk <= reinterpret_cast<MallocHeader *>(heap_) &&
-           "Found a chunk that was allocated past the kernel heap limit.");
 
-    // if (chunk != reinterpret_cast<MallocHeader *>(heap_))
     if (!reached_heap_end) chunk = chunk->NextChunk();
 
     if (reached_heap_end || chunk == heap_) {
@@ -83,7 +80,7 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
 
       size_t increase = static_cast<size_t>(new_heap_top - old_heap_top);
       assert(increase >= realsize && "sbrk did not get the requested size.");
-      if (chunk == heap_) {
+      if ((uint8_t *)chunk == old_heap_top) {
         // First time we hit the heap top.
         chunk->size = increase;
         chunk->used = 0;
@@ -92,7 +89,11 @@ void *Allocator::Malloc(size_t size, uint32_t alignment) {
         chunk->size += increase;
         assert(!chunk->used);
       }
+      assert((uint8_t *)chunk + chunk->size == (uint8_t *)heap_);
     }
+
+    assert(chunk <= reinterpret_cast<MallocHeader *>(heap_) &&
+           "Found a chunk that was allocated past the kernel heap limit.");
   }
 
   if (adjust) {

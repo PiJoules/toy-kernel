@@ -20,15 +20,20 @@ RET_TYPE exit_user_task() {
   return 0;
 }
 
-RET_TYPE debug_read(char *c) { return serial::TryRead(*c); }
+RET_TYPE debug_read(char *c) {
+  if (serial::TryRead(*c)) return 0;
+  return 1;
+}
 
 RET_TYPE create_user_task(void *entry, uint32_t codesize, void *arg,
-                          uint32_t *handle) {
+                          uint32_t *handle, uint32_t entry_offset) {
   // FIXME: This is a raw pointer passed to userspace that will remain free
   // unless the user explicitly makes a syscall that frees this. This should not
   // be the case. We should provide some way to free it and retain ownership in
   // kernel space.
-  auto *child = new UserTask(reinterpret_cast<TaskFunc>(entry), codesize, arg);
+  auto *child = new UserTask(reinterpret_cast<TaskFunc>(entry), codesize, arg,
+                             /*copyfunc=*/UserTask::CopyArgDefault,
+                             /*entry_offset=*/entry_offset);
   *handle = reinterpret_cast<uint32_t>(child);
   return 0;
 }

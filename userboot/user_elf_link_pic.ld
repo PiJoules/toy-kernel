@@ -1,15 +1,6 @@
 ENTRY(_start)
 
 SECTIONS {
-  /* This should be the same value as USER_START. */
-  . = 1024M;
-
-  .text 1024M : {
-    *(._start)
-    *(.text)
-    *(.text.*)
-  }
-
   .data ALIGN(4) : {
     *(.data)
   }
@@ -32,5 +23,11 @@ SECTIONS {
   }
   .note.gnu.build-id : {
     *(.note.gnu.build-id)
+  }
+
+  .text : {
+    *(._start)
+    *(.text)
+    *(.text.*)
   }
 }

@@ -41,6 +41,7 @@ bool TriggerInvalidOpcodeException() {
   return false;
 }
 
+// The CmdFunc should return true if we should exit userboot after it is run.
 using CmdFunc = bool (*)();
 using CmdInfo = std::tuple<const char *, const char *, CmdFunc>;
 
@@ -48,6 +49,8 @@ bool DumpCommands();
 bool Shutdown() { return true; }
 
 vfs::Directory *FileSystem;
+size_t VFSSize;
+uint8_t *VFSStart;
 
 bool RunTests() {
   if (const vfs::File *file = FileSystem->getFile("userspace-tests"))
@@ -61,6 +64,29 @@ bool RunHelloWorld() {
   return false;
 }
 
+bool RunHelloWorldPIC() {
+  if (const vfs::File *file = FileSystem->getFile("hello-world-PIC"))
+    LoadElfProgram(file->getContents().data());
+  return false;
+}
+
+bool RunHelloWorldPICStatic() {
+  if (const vfs::File *file = FileSystem->getFile("hello-world-PIC-static"))
+    LoadElfProgram(file->getContents().data());
+  return false;
+}
+
+bool RunShell() {
+  if (const vfs::File *file = FileSystem->getFile("shell")) {
+    std::unique_ptr<uint8_t> alloc(new uint8_t[sizeof(VFSSize) + VFSSize]);
+    memcpy(alloc.get(), &VFSSize, sizeof(VFSSize));
+    memcpy(alloc.get() + sizeof(VFSSize), VFSStart, VFSSize);
+    printf("Expected vfs start: %p\n", alloc.get() + sizeof(VFSSize));
+    LoadElfProgram(file->getContents().data(), alloc.get());
+  }
+  return true;
+}
+
 constexpr CmdInfo kCmds[] = {
     {"help", "Dump commands.", DumpCommands},
     {"shutdown", "Exit userboot.", Shutdown},
@@ -68,6 +94,10 @@ constexpr CmdInfo kCmds[] = {
      TriggerInvalidOpcodeException},
     {"runtests", "Run userspace tests", RunTests},
     {"hello-world", "Run hello world program", RunHelloWorld},
+    {"shell", "Launch the shell", RunShell},
+    {"hello-world-pic", "Run PIC hello world program", RunHelloWorldPIC},
+    {"hello-world-pic-static", "Run PIC hello world program",
+     RunHelloWorldPICStatic},
 };
 constexpr size_t kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
 
@@ -141,6 +171,8 @@ int main(int argc, char **argv) {
   printf("Finished test_user_program.bin.\n");
 
   FileSystem = initrd_dir;
+  VFSSize = initrd_size;
+  VFSStart = initrd_data;
 
   auto ShouldShutdown = [](char *buffer) -> bool {
     for (size_t i = 0; i < kNumCmds; ++i) {

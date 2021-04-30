@@ -23,9 +23,7 @@ set(KERNEL_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../kernel)
 if (DEFINED BUILD_USER_LIBCXX)
   add_library(user_libcxx STATIC ${USER_SRCS} ${COMMON_SRCS})
   target_include_directories(user_libcxx PRIVATE include/)
-  target_compile_options(user_libcxx
-    PRIVATE ${USER_COMPILE_FLAGS})
-
+  target_compile_options(user_libcxx PRIVATE ${USER_COMPILE_FLAGS})
   target_include_directories(user_libcxx PRIVATE ${LIBC_PROJECT_DIR}/include/)
 endif()
 

@@ -9,9 +9,9 @@ int32_t sys_debug_print(const char *str) {
   return a;
 }
 
-void sys_debug_put(char c) {
+bool sys_debug_put(char c) {
   char str[2] = {c, 0};
-  sys_debug_print(str);
+  return sys_debug_print(str) == 0;
 }
 
 void sys_exit_task() { asm volatile("int " INTERRUPT ::"a"(1)); }
@@ -19,14 +19,15 @@ void sys_exit_task() { asm volatile("int " INTERRUPT ::"a"(1)); }
 bool sys_debug_read(char *c) {
   RET_TYPE a;
   asm volatile("int " INTERRUPT : "=a"(a) : "0"(2), "b"((uint32_t)c));
-  return a;
+  return a == 0;
 }
 
-Handle sys_create_task(const void *entry, uint32_t codesize, void *arg) {
+Handle sys_create_task(const void *entry, uint32_t codesize, void *arg,
+                       size_t entry_offset) {
   Handle handle;
   asm volatile("int " INTERRUPT ::"a"(3), "b"((uint32_t)entry),
                "c"((uint32_t)codesize), "d"((uint32_t)arg),
-               "S"((uint32_t)&handle));
+               "S"((uint32_t)&handle), "D"((uint32_t)entry_offset));
   return handle;
 }
 

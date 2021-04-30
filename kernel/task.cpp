@@ -126,11 +126,12 @@ KernelTask::KernelTask(TaskFunc func, void *arg)
 }
 
 UserTask::UserTask(TaskFunc func, size_t codesize, void *arg,
-                   CopyArgFunc copyfunc)
+                   CopyArgFunc copyfunc, size_t entry_offset)
     : Task(*GetKernelPageDirectory().Clone()),
       esp0_allocation_(toy::kmalloc<uint8_t>(DEFAULT_THREAD_STACK_SIZE)),
       userfunc_(func),
-      usercode_size_(codesize) {
+      usercode_size_(codesize),
+      entry_offset_(entry_offset) {
   void *paddr = GetPhysicalBitmap4M().NextFreePhysicalPage(/*start=*/1);
 
   void *user_shared = (void *)USER_SHARED_SPACE_START;
@@ -163,7 +164,7 @@ UserTask::UserTask(TaskFunc func, size_t codesize, void *arg,
   Write(--stack_bottom, &kUserCodeSegment, sizeof(uint32_t));
   getRegs().cs = kUserCodeSegment;
 
-  src = USER_START;
+  src = USER_START + entry_offset;
   Write(--stack_bottom, &src, sizeof(src));
 
   getRegs().esp = reinterpret_cast<uint32_t>(stack_bottom);
@@ -454,7 +455,7 @@ void UserTask::SetupBeforeTaskRun() {
     // Just perform a check to make sure we will jump to the right place.
     uint32_t stack_val;
     Read(&stack_val, (void *)getRegs().esp, sizeof(stack_val));
-    assert(stack_val == USER_START);
+    assert(stack_val == USER_START + entry_offset_);
   }
 }
 

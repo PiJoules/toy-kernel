@@ -11,11 +11,11 @@ _start:
 
   // pre_main() sets up stuff you would normally expect to be useable by main(),
   // like the heap.
-  call pre_main
+  call pre_main@PLT
   test %eax, %eax
   jnz end
 
-  call main
+  call main@PLT
 
   add $8, %esp
 

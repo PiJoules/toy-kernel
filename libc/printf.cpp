@@ -71,3 +71,14 @@ extern "C" int printf(const char *fmt, ...) {
 }
 
 extern "C" void put(char c) { __system_put(c); }
+
+extern "C" int putchar(int c) {
+  if (sys::DebugPut(static_cast<char>(c))) return c;
+  return EOF;
+}
+
+extern "C" int getchar() {
+  char c;
+  while (!sys::DebugRead(c)) {}
+  return c;
+}

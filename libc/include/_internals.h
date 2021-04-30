@@ -10,4 +10,12 @@
 #define __END_CDECLS
 #endif
 
+#ifndef NULL
+#ifdef __cplusplus
+#define NULL nullptr
+#else
+#define NULL (char *(0))
+#endif
+#endif
+
 #endif

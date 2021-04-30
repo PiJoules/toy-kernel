@@ -38,13 +38,16 @@ _Static_assert(sizeof(uintptr_t) >= sizeof(char *), "");
 #define UINT32_C(x) (static_cast<uint32_t>(x))
 #define UINT64_C(x) (static_cast<uint64_t>(x))
 
+// TODO: Unify these to either all hex or all decimal.
 #define UINT8_MAX (255)
 #define UINT16_MAX (65535)
 #define UINT32_MAX (4294967295U)
 #define UINT64_MAX (18446744073709551615ULL)
 
 #define INT32_MIN (-2147483648)
-#define INT32_MAX 0x7fffffff
+#define INT32_MAX (0x7fffffff)
+
+#define INT64_MAX (9223372036854775807)
 
 // Number of bits in a byte.
 #define CHAR_BIT 8

@@ -37,3 +37,33 @@ target_link_libraries(hello-world PRIVATE sdk_c_static)
 
 # Add to the initial ramdisk.
 add_to_initrd(${CMAKE_CURRENT_BINARY_DIR}/hello-world)
+
+add_executable(hello-world-PIC hello.c)
+target_compile_options(hello-world-PIC
+  PRIVATE ${USER_C_FLAGS}
+  PRIVATE -fPIC)
+target_link_options(hello-world-PIC
+  PRIVATE ${USER_LINK_FLAGS}
+  PRIVATE -Wl,-pie)
+target_link_libraries(hello-world-PIC
+  user_libc_shared user_utils_shared)
+
+# Add to the initial ramdisk.
+add_to_initrd(${CMAKE_CURRENT_BINARY_DIR}/hello-world-PIC)
+
+add_executable(hello-world-PIC-static hello.c)
+target_compile_options(hello-world-PIC-static
+  PRIVATE ${USER_C_FLAGS}
+  PRIVATE -fPIC)
+target_link_options(hello-world-PIC-static
+  #PRIVATE ${USER_LINK_FLAGS}
+  PRIVATE -fPIE
+  PRIVATE -nostdlib
+  PRIVATE -Wl,--gc-sections
+  #PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/../user_elf_link_pic.ld
+  )
+target_link_libraries(hello-world-PIC-static
+  user_libc_pic user_utils_pic)
+
+# Add to the initial ramdisk.
+add_to_initrd(${CMAKE_CURRENT_BINARY_DIR}/hello-world-PIC-static)

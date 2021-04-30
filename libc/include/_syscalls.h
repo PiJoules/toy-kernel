@@ -8,12 +8,13 @@ __BEGIN_CDECLS
 
 bool sys_debug_read(char *c);
 int32_t sys_debug_print(const char *str);
-void sys_debug_put(char);
+bool sys_debug_put(char);
 void sys_exit_task();
 
 typedef uint32_t Handle;
 #define HANDLE_INVALID 0
-Handle sys_create_task(const void *entry, uint32_t codesize, void *arg);
+Handle sys_create_task(const void *entry, uint32_t codesize, void *arg,
+                       size_t entry_offset);
 void sys_destroy_task(Handle handle);
 void sys_copy_from_task(Handle handle, void *dst, const void *src, size_t size);
 Handle sys_get_parent_task();
@@ -33,13 +34,13 @@ namespace sys {
 
 inline bool DebugRead(char &c) { return sys_debug_read(&c); }
 inline int32_t DebugPrint(const char *str) { return sys_debug_print(str); }
-inline void DebugPut(char c) { return sys_debug_put(c); }
+inline bool DebugPut(char c) { return sys_debug_put(c); }
 inline void ExitTask() { return sys_exit_task(); }
 
 using Handle = ::Handle;
 inline Handle CreateTask(const void *entry, uint32_t codesize,
-                         void *arg = nullptr) {
-  return sys_create_task(entry, codesize, arg);
+                         void *arg = nullptr, size_t entry_offset = 0) {
+  return sys_create_task(entry, codesize, arg, entry_offset);
 }
 inline void DestroyTask(Handle handle) { return sys_destroy_task(handle); }
 

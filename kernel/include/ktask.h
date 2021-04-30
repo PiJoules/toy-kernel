@@ -201,7 +201,7 @@ class UserTask : public Task {
   }
 
   UserTask(TaskFunc func, size_t codesize, void *arg = nullptr,
-           CopyArgFunc copyfunc = CopyArgDefault);
+           CopyArgFunc copyfunc = CopyArgDefault, size_t entry_offset = 0);
   ~UserTask();
 
   bool isUserTask() const override { return true; }
@@ -242,6 +242,7 @@ class UserTask : public Task {
   // Used for loading external user programs.
   TaskFunc userfunc_;
   size_t usercode_size_;
+  uint32_t entry_offset_;
 };
 
 void exit_this_task();

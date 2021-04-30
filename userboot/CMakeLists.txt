@@ -29,15 +29,15 @@ else()
   set(SHOULD_COPY_INITRD false)
 endif()
 
-# Flags needed for compiling C source files to object files.
+# (Minimum) Flags needed for compiling C source files to object files.
 set(USER_C_FLAGS
   -fno-PIC)
 
-# Flags needed for compiling CXX source files to object files.
+# (Minimum) Flags needed for compiling CXX source files to object files.
 set(USER_CXX_FLAGS
   -fno-PIC)
 
-# Flags needed for linking object files to a final executable.
+# (Minimum) Flags needed for linking object files to a final executable.
 set(USER_LINK_FLAGS
   # Do not use any system default library. This will manually be linked in.
   -nostdlib
@@ -48,6 +48,7 @@ set(USER_LINK_FLAGS
   # We will need to place specific sections at specific addresses.
   -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
 
+# Flags used for user programs within this repo.
 set(USER_COMPILE_FLAGS
   -fno-stack-protector
   -g
@@ -58,6 +59,7 @@ set(USER_COMPILE_FLAGS
   -ftrivial-auto-var-init=pattern
   ${USER_CXX_FLAGS})
 
+# Flags used for user programs within this repo.
 set(USER_ELF_LINK_FLAGS
   -Wl,--gc-sections
   -Wl,--fatal-warnings
@@ -68,7 +70,7 @@ set(USER_PROGRAMS "" CACHE INTERNAL "")
 function(add_to_initrd binary)
   get_filename_component(path ${binary} REALPATH)
   set(USER_PROGRAMS "${USER_PROGRAMS} ${path}" CACHE INTERNAL "")
-  message(STATUS "Add ${binary} to USER_PROGRAMS (${USER_PROGRAMS})")
+  message(STATUS "Add ${binary} to USER_PROGRAMS")
 endfunction()
 
 # Attempt to find a target library called "c" that represents a static archive
@@ -160,6 +162,7 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
 
 add_subdirectory(userspace-tests)
 add_subdirectory(hello-world)
+add_subdirectory(shell)
 
 set(USER_PROGRAMS_LIST ${USER_PROGRAMS})
 separate_arguments(USER_PROGRAMS_LIST)
