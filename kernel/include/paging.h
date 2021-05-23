@@ -17,7 +17,7 @@
 // [16MB  - 20MB)   GFX_MEMORY (To be deprecated)
 // [20MB  - 24MB)   Temporary shared process memory
 // [32MB  - 1GB)    KERNEL_HEAP
-// [1GB   - 4GB)    USER_START; Flat user programs
+// [1GB   - 4GB)    USER_START
 #define KERNEL_START 0x400000
 #define KERNEL_END 0x800000                     // 8MB
 #define PAGE_DIRECTORY_REGION_START KERNEL_END  // 8MB
@@ -44,7 +44,7 @@
 #define KERN_HEAP_BEGIN 0x02000000       // 32 MB
 #define KERN_HEAP_END 0x40000000         // 1 GB
 #define USER_START UINT32_C(0x40000000)  // 1GB
-#define USER_END UINT64_C(0x100000000)   // 2GB
+#define USER_END UINT64_C(0x100000000)   // 4GB
 
 #define PAGING_FLAG 0x80000000  // CR0 - bit 31
 #define PSE_FLAG 0x00000010     // CR4 - bit 4
@@ -73,6 +73,9 @@ constexpr const uint32_t kRamAs4KPages =
     0x100000;  // Tofal RAM = 0x100000 x 4 KB = 4 GB
 
 constexpr uint32_t PageIndex4M(uint32_t addr) { return addr >> 22; }
+constexpr uint32_t PageIndex4M(uint64_t addr) {
+  return static_cast<uint32_t>(addr >> 22);
+}
 inline uint32_t PageIndex4M(const void *addr) {
   return reinterpret_cast<uint32_t>(addr) >> 22;
 }
@@ -211,6 +214,9 @@ class PageDirectory {
   void ReclaimPageDirRegion() const;
   static bool isPhysicalFree(uint32_t page_index);
   bool isVirtualMapped(void *v_addr) const;
+
+  // Get the next virtual address available in the user memory region.
+  void *GetNextFreeVirtualUser() const;
 
  private:
   alignas(kPageDirAlignment) uint32_t pd_impl_[kNumPageDirEntries];

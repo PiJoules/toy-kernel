@@ -112,6 +112,12 @@ class Task {
   // same as this task, this just performs a memcpy().
   void Read(void *current_dst, const void *this_dst, size_t size);
 
+  // Map one page from another task's virtual address space to this task's
+  // address space. Both tasks will share the same physical address.
+  void MapPageFromTask(Task &other_task, void *this_dist,
+                       const void *other_src);
+  void UnmapPage(void *addr);
+
   Task *getParent() const {
     assert(this != GetMainKernelTask() &&
            "Attempting to get non-existant parent of the main kernel task.");

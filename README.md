@@ -1,3 +1,5 @@
+# Unnamed Toy Kernel
+
 `font.psf` was copied from the [soso](https://github.com/ozkl/soso) repository,
 which was referenced many times when building this. Thanks to the devs on them.
 :)

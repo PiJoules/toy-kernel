@@ -31,34 +31,69 @@ void InplaceRStrip(std::string &path) {
 }
 
 std::string SimplifyName(std::string name) {
-  std::string path(name);
-  InplaceLStrip(path);
-  InplaceRStrip(path);
-  if (path.empty()) return path;
+  InplaceLStrip(name);
+  InplaceRStrip(name);
+  if (name.empty()) return name;
 
-  auto found_sep = path.find(kPathSeparator);
-  if (found_sep == path.end()) {
+  auto found_sep = name.find(kPathSeparator);
+  if (found_sep == name.end()) {
     // "dirname"
-    return path;
+    return name;
   }
 
-  if (found_sep == path.end() - 1) {
+  if (found_sep == name.end() - 1) {
     // "dirname/"
-    return std::string(path.c_str(), path.size() - 1);
+    return std::string(name.c_str(), name.size() - 1);
   }
 
   return name;
 }
 
-Node *GetNodeImpl(const Directory &dir, const std::string &path) {
+// Split the uppermost directory from the path.
+// Example:
+//
+//   "a/b/c" -> ("a", "b/c")
+//   "a/" -> ("a", "")
+//   "a" -> ("a", "")
+//
+std::pair<std::string, std::string> SplitHead(const std::string &path) {
+  assert(path[0] != kPathSeparator);
+  std::string::iter_t sep(nullptr);
+  if ((sep = path.find(kPathSeparator)) != path.end()) {
+    // Do not include the path separator in either the head or tail.
+    std::string head(path.begin(), sep);
+    std::string rest(sep + 1, path.end());
+    return std::pair(head, rest);
+  }
+  return std::pair(path, std::string());
+}
+
+const Node *GetNodeImpl(const Directory &dir, const std::string &path);
+
+Node *GetNodeImpl(Directory &dir, const std::string &path) {
   std::string name = SimplifyName(path);
   if (name.empty()) return nullptr;
 
-  for (const std::unique_ptr<Node> &node : dir.getNodes()) {
-    auto simplified = SimplifyName(node->getName());
-    if (name == simplified) return node.get();
+  auto head_tail = SplitHead(name);
+
+  // Base case: only one node.
+  if (head_tail.second.empty()) {
+    for (const std::unique_ptr<Node> &node : dir.getNodes()) {
+      auto simplified = SimplifyName(node->getName());
+      if (head_tail.first == simplified) return node.get();
+    }
+    return nullptr;
   }
+
+  // Seach for the head in any of the nodes in this directory.
+  if (auto *subdir = dir.getDir(head_tail.first))
+    return GetNodeImpl(*subdir, head_tail.second);
+
   return nullptr;
+}
+
+const Node *GetNodeImpl(const Directory &dir, const std::string &path) {
+  return GetNodeImpl(const_cast<Directory &>(dir), path);
 }
 
 size_t oct2bin(const char *str, size_t size) {

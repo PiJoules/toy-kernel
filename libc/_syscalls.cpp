@@ -58,3 +58,12 @@ int32_t sys_map_page(void *addr) {
   asm volatile("int " INTERRUPT : "=a"(ret) : "0"(8), "b"((uint32_t)addr));
   return ret;
 }
+
+void sys_share_page(Handle handle, void **dst, const void *src) {
+  asm volatile("int " INTERRUPT ::"a"(9), "b"(handle), "c"((uint32_t)dst),
+               "d"((uint32_t)src));
+}
+
+void sys_unmap_page(void *dst) {
+  asm volatile("int " INTERRUPT ::"a"(10), "b"((uint32_t)dst));
+}

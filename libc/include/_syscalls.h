@@ -26,6 +26,9 @@ uint32_t sys_get_parent_task_id();
 #define MAP_OOM (-3)
 int32_t sys_map_page(void *addr);
 
+void sys_share_page(Handle handle, void **dst, const void *src);
+void sys_unmap_page(void *dst);
+
 __END_CDECLS
 
 // Provide a nice C++ API if available.

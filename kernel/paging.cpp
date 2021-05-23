@@ -300,3 +300,11 @@ bool PageDirectory::isVirtualMapped(void *v_addr) const {
   const uint32_t &pde = pd_impl_[index];
   return pde & PG_PRESENT;
 }
+
+void *PageDirectory::GetNextFreeVirtualUser() const {
+  for (uint32_t index = PageIndex4M(USER_START), end = PageIndex4M(USER_END);
+       index < end; ++index) {
+    if (!(pd_impl_[index] & PG_PRESENT)) return PageAddr4M(index);
+  }
+  return nullptr;
+}

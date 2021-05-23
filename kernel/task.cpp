@@ -476,6 +476,25 @@ void Task::Read(void *current_dst, const void *task_src, size_t size) {
                                     task_src, size);
 }
 
+void Task::MapPageFromTask(Task &other_task, void *this_dst,
+                           const void *other_src) {
+  DisableInterruptsRAII raii;
+  assert(this != &other_task &&
+         "Double check mapping within the same address space");
+  assert(reinterpret_cast<uintptr_t>(this_dst) % kPageSize4M == 0);
+  assert(reinterpret_cast<const uintptr_t>(other_src) % kPageSize4M == 0);
+
+  void *paddr = other_task.getPageDirectory().GetPhysicalAddr(other_src);
+  getPageDirectory().AddPage(this_dst, paddr, PG_USER,
+                             /*allow_physical_reuse=*/true);
+}
+
+void Task::UnmapPage(void *vaddr) {
+  DisableInterruptsRAII raii;
+  assert(reinterpret_cast<uintptr_t>(vaddr) % kPageSize4M == 0);
+  getPageDirectory().RemovePage(vaddr);
+}
+
 Task::~Task() {
   assert(child_tasks_.empty());
 

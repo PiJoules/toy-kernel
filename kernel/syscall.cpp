@@ -61,6 +61,25 @@ RET_TYPE copy_from_task(uint32_t handle, void *dst, const void *src,
   return 0;
 }
 
+// Map one page of memory from another task's address space to this task's
+// address space.
+RET_TYPE share_page(uint32_t handle, void **dst, const void *src) {
+  auto *task = reinterpret_cast<UserTask *>(handle);
+  assert(task->isUserTask());
+  assert(task != GetCurrentTask());
+  void *next_free_vpage =
+      GetCurrentTask()->getPageDirectory().GetNextFreeVirtualUser();
+  assert(next_free_vpage);
+  GetCurrentTask()->MapPageFromTask(*task, next_free_vpage, src);
+  *dst = next_free_vpage;
+  return 0;
+}
+
+RET_TYPE unmap_page(void *dst) {
+  GetCurrentTask()->UnmapPage(dst);
+  return 0;
+}
+
 RET_TYPE get_parent_task(uint32_t *handle) {
   *handle = reinterpret_cast<uint32_t>(GetCurrentTask()->getParent());
   return 0;
@@ -98,15 +117,17 @@ RET_TYPE map_page(void *vaddr) {
 }
 
 void *kSyscalls[] = {
-    reinterpret_cast<void *>(debug_write),
-    reinterpret_cast<void *>(exit_user_task),
-    reinterpret_cast<void *>(debug_read),
-    reinterpret_cast<void *>(create_user_task),
-    reinterpret_cast<void *>(destroy_user_task),
-    reinterpret_cast<void *>(copy_from_task),
-    reinterpret_cast<void *>(get_parent_task),
-    reinterpret_cast<void *>(get_parent_task_id),
-    reinterpret_cast<void *>(map_page),
+    reinterpret_cast<void *>(debug_write),         // 0
+    reinterpret_cast<void *>(exit_user_task),      // 1
+    reinterpret_cast<void *>(debug_read),          // 2
+    reinterpret_cast<void *>(create_user_task),    // 3
+    reinterpret_cast<void *>(destroy_user_task),   // 4
+    reinterpret_cast<void *>(copy_from_task),      // 5
+    reinterpret_cast<void *>(get_parent_task),     // 6
+    reinterpret_cast<void *>(get_parent_task_id),  // 7
+    reinterpret_cast<void *>(map_page),            // 8
+    reinterpret_cast<void *>(share_page),          // 9
+    reinterpret_cast<void *>(unmap_page),          // 10
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 
