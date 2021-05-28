@@ -36,6 +36,8 @@ void TaskMemcpy(Task &task, Task &other_task, void *dst, const void *src,
                 size_t size) {
   DisableInterruptsRAII raii;
 
+  if (!size) return;
+
   if (&other_task == &task) {
     memcpy(dst, src, size);
     return;

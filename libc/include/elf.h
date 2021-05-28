@@ -1,11 +1,8 @@
 #ifndef ELF_H_
 #define ELF_H_
 
+#include <limits.h>
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 // Elf types and data structures are taken from
 // http://www.skyfree.org/linux/references/ELF_Format.pdf.
@@ -80,10 +77,19 @@ inline bool IsValidElf(const Elf32_Ehdr *hdr) {
 #define PF_R 4       // Readable
 #define PF_MASKPROC  // Unspecified
 
-void LoadElfProgram(const uint8_t *elf_data, void *arg = nullptr);
+struct ArgInfo {
+  const void *raw_vfs_data;
+  Handle raw_vfs_data_owner;
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
+  // This buffer is packed/unpacked according to PackArgv and UnpackArgv.
+  const char *packed_argv;
+  size_t packed_argv_size;
+};
+
+constexpr uint32_t kPageSize4M = 0x00400000;
+
+void LoadElfProgram(const uint8_t *elf_data, const void *raw_vfs_data,
+                    Handle raw_vfs_data_owner, size_t argc = 0,
+                    const char *argv[ARG_MAX] = nullptr);
 
 #endif

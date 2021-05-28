@@ -39,8 +39,6 @@ struct MallocHeader {
 static_assert(sizeof(MallocHeader) == 4, "");
 static_assert(sizeof(MallocHeader) == kMaxAlignment, "");
 
-constexpr size_t kMallocMinSize = sizeof(MallocHeader);
-
 class Allocator {
  public:
   // Request the heap top to be moved up by `increment` bytes. `heap` is the
@@ -84,19 +82,7 @@ class Allocator {
   void *getHeap() const { return heap_; }
 
  private:
-  void InitializeHeap() {
-    if (heap_end_) assert(heap_end_ > heap_start_);
-
-    // Request just 1 byte for now. This also sets up the first chunk.
-    heap_ = sbrk_(1, heap_);
-    assert(heap_ > heap_start_);
-
-    auto *first_chunk = reinterpret_cast<MallocHeader *>(heap_start_);
-    first_chunk->used = 0;
-    first_chunk->size =
-        static_cast<size_t>(reinterpret_cast<uint8_t *>(heap_) -
-                            reinterpret_cast<uint8_t *>(heap_start_));
-  }
+  void InitializeHeap();
 
   /**
    * Perform a realloc by performing a malloc for the new size, copying over the
@@ -116,6 +102,7 @@ class Allocator {
 };
 
 size_t GetHeapUsed();
+size_t GetMinMallocSize();
 
 }  // namespace utils
 

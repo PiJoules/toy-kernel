@@ -67,3 +67,9 @@ void sys_share_page(Handle handle, void **dst, const void *src) {
 void sys_unmap_page(void *dst) {
   asm volatile("int " INTERRUPT ::"a"(10), "b"((uint32_t)dst));
 }
+
+Handle sys_get_current_task() {
+  Handle handle;
+  asm volatile("int " INTERRUPT ::"a"(11), "b"((uint32_t)&handle));
+  return handle;
+}

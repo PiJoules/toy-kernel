@@ -13,6 +13,10 @@ int putchar(int c);
 int puts(const char *);
 int getchar();
 
+typedef uintptr_t FILE;
+FILE *popen();
+int pclose(FILE *);
+
 __END_CDECLS
 
 #endif

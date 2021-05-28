@@ -181,7 +181,7 @@ TEST(MinAllocation) {
 
 TEST(MoreThanMinAllocation) {
   size_t heap_used = GetHeapUsed();
-  size_t size = utils::kMallocMinSize * 2;
+  size_t size = utils::GetMinMallocSize() * 2;
   auto *str = static_cast<char *>(malloc(sizeof(char) * size));
 
   // We get the amount we request + the malloc header.
@@ -195,7 +195,7 @@ TEST(MoreThanMinAllocation) {
 }
 
 TEST(MultipleAllocations) {
-  size_t size = utils::kMallocMinSize;
+  size_t size = utils::GetMinMallocSize();
   size_t heap_used = GetHeapUsed();
   void *buf1 = malloc(size);
   ASSERT_EQ(GetHeapUsed(), heap_used + (size + sizeof(MallocHeader)));
@@ -827,12 +827,19 @@ TEST(StringErase) {
   }
 }
 
+TEST(StringClear) {
+  std::string s("abc123");
+  s.clear();
+  ASSERT_TRUE(s.empty());
+}
+
 TEST_SUITE(StringSuite) {
   RUN_TEST(StringTest);
   RUN_TEST(StringConstruction);
   RUN_TEST(StringConcat);
   RUN_TEST(StringIterator);
   RUN_TEST(StringErase);
+  RUN_TEST(StringClear);
 }
 
 TEST(EnumerateIterator) {

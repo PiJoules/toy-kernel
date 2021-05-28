@@ -24,6 +24,29 @@ void *memcpy(void *dst, const void *src, size_t num) {
   return dst;
 }
 
+// Copies the first num characters of source to destination. If the end of the
+// source C string (which is signaled by a null-character) is found before num
+// characters have been copied, destination is padded with zeros until a total
+// of num characters have been written to it.
+//
+// No null-character is implicitly appended at the end of destination if source
+// is longer than num. Thus, in this case, destination shall not be considered a
+// null terminated C string (reading it as such would overflow).
+//
+// destination and source shall not overlap (see memmove for a safer alternative
+// when overlapping).
+char *strncpy(char *dst, const char *src, size_t num) {
+  size_t len = strlen(src);
+  size_t cpy = (len < num) ? len : num;
+  for (size_t i = 0; i < cpy; ++i) {
+    *dst = *src;
+    ++dst;
+    ++src;
+  }
+  for (size_t i = cpy; i < num; ++i) { *(dst++) = 0; }
+  return dst;
+}
+
 void *memmove(void *dest, const void *src, size_t size) {
   if (!size) return dest;
   char *temp = (char *)malloc(size);

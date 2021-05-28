@@ -79,13 +79,16 @@ extern "C" int __user_main(void *stack) {
   printf("vfs:\n");
   vfs->Dump();
 
-  const vfs::Directory *initrd_dir = vfs->getDir("initrd_files");
+  const vfs::Directory *initrd_dir = vfs.get();
   if (const vfs::File *file = initrd_dir->getFile("userboot-stage2")) {
     std::unique_ptr<uint8_t> alloc(new uint8_t[sizeof(vfs_size) + vfs_size]);
     memcpy(alloc.get(), &vfs_size, sizeof(vfs_size));
     memcpy(alloc.get() + sizeof(vfs_size), initrd_data + entry_binary_size,
            vfs_size);
-    LoadElfProgram(file->getContents().data(), alloc.get());
+    LoadElfProgram(file->getContents().data(), alloc.get(),
+                   sys_get_current_task());
+    // LoadElfProgram(file->getContents().data(), alloc.get(),
+    //                file->getName().c_str());
   } else {
     printf(
         "ERROR: Missing \"userboot-stage2\" binary. Exiting Userboot Stage 1 "

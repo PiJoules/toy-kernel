@@ -20,6 +20,8 @@ set(USER_SRCS
   umalloc.cpp
   pre-main.cpp
   printf.cpp
+  elf.cpp
+  opendir.cpp
   _syscalls.cpp)
 
 # FIXME: We should not assume the directory is adjascent to this one.

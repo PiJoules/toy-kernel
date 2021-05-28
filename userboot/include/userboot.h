@@ -7,8 +7,6 @@
 extern "C" {
 #endif
 
-const uint32_t kPageSize4M = 0x00400000;
-
 uint32_t PageIndex4M(const void *addr) { return (uint32_t)(addr) >> 22; }
 void *PageAddr4M(uint32_t page) { return (void *)(page << 22); }
 
@@ -21,7 +19,6 @@ void *NextPage() {
 }
 
 const int kExitFailure = -1;
-const size_t kInitHeapSize = kPageSize4M;
 
 #ifdef __cplusplus
 }  // extern "C"

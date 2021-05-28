@@ -35,6 +35,13 @@ std::string SimplifyName(std::string name) {
   InplaceRStrip(name);
   if (name.empty()) return name;
 
+  if (name.size() == 1 && name[0] == '.') return name;
+
+  if (name.size() >= 2 && name[0] == '.' && name[1] == kPathSeparator) {
+    // "./..."
+    name.erase(name.begin(), name.begin() + 2);
+  }
+
   auto found_sep = name.find(kPathSeparator);
   if (found_sep == name.end()) {
     // "dirname"
@@ -43,7 +50,7 @@ std::string SimplifyName(std::string name) {
 
   if (found_sep == name.end() - 1) {
     // "dirname/"
-    return std::string(name.c_str(), name.size() - 1);
+    name.erase(found_sep, name.end());
   }
 
   return name;
@@ -73,6 +80,9 @@ const Node *GetNodeImpl(const Directory &dir, const std::string &path);
 Node *GetNodeImpl(Directory &dir, const std::string &path) {
   std::string name = SimplifyName(path);
   if (name.empty()) return nullptr;
+
+  // Current directory.
+  if (name == ".") return &dir;
 
   auto head_tail = SplitHead(name);
 

@@ -18,6 +18,7 @@ Handle sys_create_task(const void *entry, uint32_t codesize, void *arg,
 void sys_destroy_task(Handle handle);
 void sys_copy_from_task(Handle handle, void *dst, const void *src, size_t size);
 Handle sys_get_parent_task();
+Handle sys_get_current_task();
 uint32_t sys_get_parent_task_id();
 
 #define MAP_SUCCESS (0)

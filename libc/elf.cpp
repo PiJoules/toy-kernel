@@ -1,15 +1,35 @@
 #include <_syscalls.h>
+#include <assert.h>
 #include <elf.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <algorithm>
-#include <cassert>
-#include <cstdio>
 
 // NOTE: This should always have the same value as USER_START in the kernel's
 // paging.h.
 #define USER_START UINT32_C(0x40000000)  // 1GB
 
-void LoadElfProgram(const uint8_t *elf_data, void *arg) {
+namespace {
+
+// packed_size must be large enough to hold all the strings in argv.
+void PackArgv(size_t argc, const char **argv, size_t packed_size,
+              char packed_argv[packed_size]) {
+  for (size_t i = 0; i < argc; ++i) {
+    const char *arg = argv[i];
+    size_t len = strlen(arg);
+    memcpy(packed_argv, arg, len);
+    packed_argv[len] = 0;
+    packed_argv += len + 1;  // +1 for the null terminator.
+  }
+}
+
+}  // namespace
+
+void LoadElfProgram(const uint8_t *elf_data, const void *raw_vfs_data,
+                    Handle raw_vfs_data_owner, size_t argc, const char **argv) {
+  // const char *cmd) {
   const auto *hdr = reinterpret_cast<const Elf32_Ehdr *>(elf_data);
   assert(IsValidElf(hdr) && "Invalid elf program");
 
@@ -78,9 +98,32 @@ void LoadElfProgram(const uint8_t *elf_data, void *arg) {
 
   assert(start_offset >= 0 && end_offset && end_offset > start_offset);
   size_t cpysize = end_offset - static_cast<size_t>(start_offset);
+
+  ArgInfo arginfo = {
+      .raw_vfs_data = raw_vfs_data,
+      .raw_vfs_data_owner = raw_vfs_data_owner,
+  };
+  if (argc) {
+    size_t packed_argv_size = 0;
+    for (size_t i = 0; i < argc; ++i) {
+      packed_argv_size += strlen(argv[i]) + 1;
+    }
+    arginfo.packed_argv_size = packed_argv_size;
+  } else {
+    arginfo.packed_argv_size = 0;
+  }
+
+  // Ensure that we have at least a non-zero vla.
+  char packed_argv[arginfo.packed_argv_size ? arginfo.packed_argv_size : 1];
+
+  if (argc) {
+    PackArgv(argc, argv, arginfo.packed_argv_size, packed_argv);
+    arginfo.packed_argv = packed_argv;
+  } else {
+    arginfo.packed_argv = nullptr;
+  }
   sys::Handle handle = sys::CreateTask(elf_data + start_offset, cpysize,
-                                       /*arg=*/arg,
+                                       /*arg=*/&arginfo,
                                        /*entry_offset=*/entry_offset);
-  printf("Created handle %u for elf file\n", handle);
   sys::DestroyTask(handle);
 }

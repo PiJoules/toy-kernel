@@ -57,6 +57,7 @@ set(USER_COMPILE_FLAGS
   -fdata-sections
   -ffunction-sections
   -ftrivial-auto-var-init=pattern
+  -nostdinc  # Do not use system headers.
   ${USER_CXX_FLAGS})
 
 # Flags used for user programs within this repo.
@@ -135,7 +136,7 @@ add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
 
 # Userboot stage 1. The sole purpose of this is to run Userboot stage 2,
 # which contains the rest of the userboot logic, but in ELF format.
-make_flat_user_binary(userboot userboot.cpp elf.cpp)
+make_flat_user_binary(userboot userboot.cpp)
 add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
 add_subdirectory(sdk)
@@ -143,7 +144,7 @@ add_subdirectory(sdk)
 # Userboot stage 2. This continues userboot, but we can run elf binaries,
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
-add_executable(userboot-stage2.debug userboot-stage2.cpp elf.cpp)
+add_executable(userboot-stage2.debug userboot-stage2.cpp)
 target_compile_options(userboot-stage2.debug PRIVATE ${USER_COMPILE_FLAGS})
 target_link_options(userboot-stage2.debug PRIVATE ${USER_ELF_LINK_FLAGS})
 target_link_libraries(userboot-stage2.debug sdk_cxx_static)
@@ -180,7 +181,7 @@ add_custom_target(${INITRD}
   # Copy user programs + data
   COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
   COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f ${INITRD_DIR} ; done"
-  COMMAND tar --format=ustar -cf ${INITRD}.tar ${INITRD_DIR}
+  COMMAND tar --format=ustar -cf ${INITRD}.tar -C ${INITRD_DIR} .
 
   # The initrd will consist of the concatenation of the entry program at the
   # start of the file and the tarball for the ustar filesystem.

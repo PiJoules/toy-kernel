@@ -8,6 +8,22 @@
 
 namespace utils {
 
+size_t GetMinMallocSize() { return sizeof(MallocHeader); }
+
+void Allocator::InitializeHeap() {
+  if (heap_end_) assert(heap_end_ > heap_start_);
+
+  // Request just 1 byte for now. This also sets up the first chunk.
+  heap_ = sbrk_(1, heap_);
+  assert(heap_ > heap_start_);
+
+  auto *first_chunk = reinterpret_cast<MallocHeader *>(heap_start_);
+  first_chunk->used = 0;
+  first_chunk->size =
+      static_cast<size_t>(reinterpret_cast<uint8_t *>(heap_) -
+                          reinterpret_cast<uint8_t *>(heap_start_));
+}
+
 void *Allocator::Malloc(size_t size) { return Malloc(size, kMaxAlignment); }
 
 void *Allocator::Malloc(size_t size, uint32_t alignment) {

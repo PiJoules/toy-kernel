@@ -90,6 +90,11 @@ RET_TYPE get_parent_task_id(uint32_t *id) {
   return 0;
 }
 
+RET_TYPE get_current_task(uint32_t *handle) {
+  *handle = reinterpret_cast<uint32_t>(GetCurrentTask());
+  return 0;
+}
+
 #define MAP_SUCCESS (0)
 #define MAP_UNALIGNED_ADDR (-1)
 #define MAP_ALREADY_MAPPED (-2)
@@ -128,6 +133,7 @@ void *kSyscalls[] = {
     reinterpret_cast<void *>(map_page),            // 8
     reinterpret_cast<void *>(share_page),          // 9
     reinterpret_cast<void *>(unmap_page),          // 10
+    reinterpret_cast<void *>(get_current_task),    // 11
 };
 constexpr size_t kNumSyscalls = sizeof(kSyscalls) / sizeof(*kSyscalls);
 

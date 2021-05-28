@@ -6,18 +6,17 @@ _start:
   // Here we can access any arguments passed to the user by the kernel on a
   // task creation. main() wants an int and char** though, so we can just push
   // these values.
+  // NOTE that for any elf binary, this value is always the pointer to the
+  // arginfo struct passed to the create task syscall in `elf.cpp`.
   pushl %esp  // argv
-  pushl $1  // argc
 
   // pre_main() sets up stuff you would normally expect to be useable by main(),
-  // like the heap.
+  // like the heap. We also call main from there.
   call pre_main@PLT
   test %eax, %eax
   jnz end
 
-  call main@PLT
-
-  add $8, %esp
+  add $4, %esp
 
   // Call the task exit syscall and wait.
   mov $1, %eax
