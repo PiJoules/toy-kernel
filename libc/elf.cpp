@@ -27,9 +27,8 @@ void PackArgv(size_t argc, const char **argv, size_t packed_size,
 
 }  // namespace
 
-void LoadElfProgram(const uint8_t *elf_data, const void *raw_vfs_data,
-                    Handle raw_vfs_data_owner, size_t argc, const char **argv) {
-  // const char *cmd) {
+void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
+                    size_t argc, const char **argv) {
   const auto *hdr = reinterpret_cast<const Elf32_Ehdr *>(elf_data);
   assert(IsValidElf(hdr) && "Invalid elf program");
 
@@ -100,8 +99,7 @@ void LoadElfProgram(const uint8_t *elf_data, const void *raw_vfs_data,
   size_t cpysize = end_offset - static_cast<size_t>(start_offset);
 
   ArgInfo arginfo = {
-      .raw_vfs_data = raw_vfs_data,
-      .raw_vfs_data_owner = raw_vfs_data_owner,
+      .env_info = *env_info,
   };
   if (argc) {
     size_t packed_argv_size = 0;

@@ -79,6 +79,13 @@ class string {
     return *this;
   }
 
+  string operator+(const string &other) const {
+    // FIXME: We should be able to do one resize and a memcpy().
+    std::string newstring(*this);
+    newstring += other;
+    return newstring;
+  }
+
   using iter_t = ext::PointerIterator<char>;
 
   iter_t begin() const { return iter_t(data_); }

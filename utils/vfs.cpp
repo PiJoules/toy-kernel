@@ -30,32 +30,6 @@ void InplaceRStrip(std::string &path) {
   }
 }
 
-std::string SimplifyName(std::string name) {
-  InplaceLStrip(name);
-  InplaceRStrip(name);
-  if (name.empty()) return name;
-
-  if (name.size() == 1 && name[0] == '.') return name;
-
-  if (name.size() >= 2 && name[0] == '.' && name[1] == kPathSeparator) {
-    // "./..."
-    name.erase(name.begin(), name.begin() + 2);
-  }
-
-  auto found_sep = name.find(kPathSeparator);
-  if (found_sep == name.end()) {
-    // "dirname"
-    return name;
-  }
-
-  if (found_sep == name.end() - 1) {
-    // "dirname/"
-    name.erase(found_sep, name.end());
-  }
-
-  return name;
-}
-
 // Split the uppermost directory from the path.
 // Example:
 //
@@ -118,7 +92,40 @@ size_t oct2bin(const char *str, size_t size) {
   return n;
 }
 
+bool IsZeroPage(const uint8_t *tar_page) {
+  for (size_t i = 0; i < kTarBlockSize; ++i) {
+    if (*(tar_page++)) return false;
+  }
+  return true;
+}
+
 }  // namespace
+
+std::string SimplifyName(std::string name) {
+  InplaceLStrip(name);
+  InplaceRStrip(name);
+  if (name.empty()) return name;
+
+  if (name.size() == 1 && name[0] == '.') return name;
+
+  if (name.size() >= 2 && name[0] == '.' && name[1] == kPathSeparator) {
+    // "./..."
+    name.erase(name.begin(), name.begin() + 2);
+  }
+
+  auto found_sep = name.find(kPathSeparator);
+  if (found_sep == name.end()) {
+    // "dirname"
+    return name;
+  }
+
+  if (found_sep == name.end() - 1) {
+    // "dirname/"
+    name.erase(found_sep, name.end());
+  }
+
+  return name;
+}
 
 #ifndef KERNEL
 void Node::Dump() const {
@@ -235,23 +242,27 @@ File &Directory::mkfile(const std::string &name) {
   return *rtti::cast<File>(current_dir->nodes_.back().get());
 }
 
-std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive, size_t tarsize) {
-  assert(tarsize % kTarBlockSize == 0 &&
-         "Tar file is not a multiple of 512 bytes.");
-
-  std::unique_ptr<Directory> root(new Directory);
-
+void IterateUSTAR(const uint8_t *archive,
+                  OnDirCallback dircallback,
+                  OnFileCallback filecallback,
+                  void *arg) {
   const TarBlock *tar = reinterpret_cast<const TarBlock *>(archive);
-  while (tarsize && memcmp(tar->ustar, "ustar", 5) == 0) {
-    std::string path(tar->prefix);
-    path += tar->name;
+  while (!(IsZeroPage(reinterpret_cast<const uint8_t *>(tar)) &&
+           IsZeroPage(reinterpret_cast<const uint8_t *>(tar + 1)))) {
+    assert(memcmp(tar->ustar, "ustar", 5) == 0 && "Expected UStar format");
+    const char *prefix = tar->prefix;
+    const char *name = tar->name;
 
     size_t filesize = oct2bin(tar->size, sizeof(TarBlock::size) - 1);
     if (tar->type == kDirectory) {
       assert(!filesize && "A directory should have no file size.");
+      DirInfo dirinfo = {
+        .prefix = prefix,
+        .name = name,
+      };
+      if (!dircallback(dirinfo, arg))
+        return;
       ++tar;
-      tarsize -= kTarBlockSize;
-      root->mkdir(path);
       continue;
     }
 
@@ -259,19 +270,42 @@ std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive, size_t tarsize) {
 
     // Skip past the header.
     ++tar;
-    tarsize -= kTarBlockSize;
 
     // Round up to the nearest number of 512 byte chunks.
     size_t num_chunks = (filesize % kTarBlockSize)
                             ? (filesize / kTarBlockSize) + 1
                             : (filesize / kTarBlockSize);
 
-    File &file = root->mkfile(path);
-    file.Write(reinterpret_cast<const char *>(tar), filesize);
+    FileInfo fileinfo = {
+      .prefix = prefix,
+      .name = name,
+      .size = filesize,
+      .data = reinterpret_cast<const char *>(tar),
+    };
+    if (!filecallback(fileinfo, arg))
+      return;
 
     tar += num_chunks;
-    tarsize -= num_chunks * kTarBlockSize;
   }
+}
+
+std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive) {
+  std::unique_ptr<Directory> root(new Directory);
+
+  auto dircallback = [](const DirInfo &dirinfo, void *arg) {
+    auto *root = reinterpret_cast<Directory *>(arg);
+    root->mkdir(dirinfo.getFullPath());
+    return true;
+  };
+
+  auto filecallback = [](const FileInfo &fileinfo, void *arg) {
+    auto *root = reinterpret_cast<Directory *>(arg);
+    File &file = root->mkfile(fileinfo.getFullPath());
+    file.Write(fileinfo.data, fileinfo.size);
+    return true;
+  };
+
+  IterateUSTAR(archive, dircallback, filecallback, root.get());
 
   return root;
 }

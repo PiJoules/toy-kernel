@@ -36,6 +36,7 @@ if (DEFINED BUILD_USER_UTILS)
   target_include_directories(user_utils PRIVATE ${LIBC_PROJECT_DIR}/include/)
   target_include_directories(user_utils PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
   target_compile_options(user_utils PRIVATE ${USER_COMPILE_FLAGS})
+  target_link_libraries(user_utils user_libcxx)
 
   add_library(user_utils_shared SHARED ${COMMON_SRCS} ${USER_SRCS})
   target_include_directories(user_utils_shared PRIVATE include/)
@@ -52,4 +53,5 @@ if (DEFINED BUILD_USER_UTILS)
   target_compile_options(user_utils_pic
     PRIVATE ${USER_COMPILE_FLAGS}
     PRIVATE -fPIC)
+  target_link_libraries(user_utils_pic user_libcxx)
 endif()

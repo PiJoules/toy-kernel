@@ -5,6 +5,6 @@
 
 #include <memory>
 
-std::unique_ptr<vfs::Directory> ParseUSTARFromRawData();
+const vfs::Directory &GetRootDir();
 
 #endif

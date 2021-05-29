@@ -6,6 +6,7 @@
 #include <elf.h>
 #include <limits.h>
 #include <umalloc.h>
+#include <vfs_helpers.h>
 
 #include <cstdio>
 #include <cstring>
@@ -14,12 +15,10 @@
 // paging.h.
 #define USER_START UINT32_C(0x40000000)  // 1GB
 
-// FIXME: This should only be accessible within libc.
-const void *__raw_vfs_data;
-
 namespace {
 
-Handle __raw_vfs_data_owner;
+GlobalEnvInfo kGlobalEnvInfo;
+vfs::Directory *kRootVFS;
 
 uint32_t PageIndex4M(const void *addr) { return (uint32_t)(addr) >> 22; }
 void *PageAddr4M(uint32_t page) { return (void *)(page << 22); }
@@ -35,10 +34,42 @@ void *NextPage() {
 constexpr const int kExitFailure = -1;
 constexpr const size_t kInitHeapSize = kPageSize4M;
 
+// This assumes the heap is setup to support unique_ptr.
+std::unique_ptr<vfs::Directory> ParseUSTARFromRawData() {
+  Handle vfs_owner = GetRawVFSDataOwner();
+
+  // The first argument will be a pointer to vfs data in the owner task's
+  // address space. Map some virtual address in this task's address space to
+  // the page with the vfs so we can read from it and construct a vfs object.
+  auto vfs_loc_int = reinterpret_cast<uintptr_t>(GetRawVFSData());
+  uint32_t loc_offset = vfs_loc_int % kPageSize4M;
+  auto vfs_loc_page = vfs_loc_int - loc_offset;
+  uint8_t *this_vfs_page;
+  sys_share_page(vfs_owner, reinterpret_cast<void **>(&this_vfs_page),
+                 reinterpret_cast<void *>(vfs_loc_page));
+  uint8_t *this_vfs = this_vfs_page + loc_offset;
+
+  // FIXME: It could be possible that initrd is more than a page in size. In
+  // this case, we should check for it and be sure to map the remaining pages.
+  std::unique_ptr<vfs::Directory> vfs = vfs::ParseUSTAR(this_vfs);
+
+  sys_unmap_page(this_vfs_page);
+
+  return vfs;
+}
+
 }  // namespace
 
 extern "C" int main(int, char **);
-extern "C" Handle GetRawVFSDataOwner() { return __raw_vfs_data_owner; }
+extern "C" const GlobalEnvInfo *GetGlobalEnvInfo() { return &kGlobalEnvInfo; }
+extern "C" Handle GetRawVFSDataOwner() {
+  return kGlobalEnvInfo.raw_vfs_data_owner;
+}
+extern "C" const void *GetRawVFSData() { return kGlobalEnvInfo.raw_vfs_data; }
+
+const vfs::Directory &GetRootDir() {
+  return *kRootVFS;
+}
 
 // Populate argv with pointers into packed_argv. Return the number of arguments
 // in argv (which will be argc).
@@ -109,8 +140,11 @@ extern "C" int pre_main(void **arg_ptr) {
 
     sys_unmap_page(this_arginfo_page);
   }
-  __raw_vfs_data = arginfo.raw_vfs_data;
-  __raw_vfs_data_owner = arginfo.raw_vfs_data_owner;
+  kGlobalEnvInfo.raw_vfs_data = arginfo.env_info.raw_vfs_data;
+  kGlobalEnvInfo.raw_vfs_data_owner = arginfo.env_info.raw_vfs_data_owner;
+
+  auto root_vfs = ParseUSTARFromRawData();
+  kRootVFS = root_vfs.get();
 
   char packed_argv[arginfo.packed_argv_size];
   sys_copy_from_task(parent, packed_argv, arginfo.packed_argv,

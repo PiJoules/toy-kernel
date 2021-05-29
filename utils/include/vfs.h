@@ -147,7 +147,38 @@ union TarBlock {
 constexpr const size_t kTarBlockSize = 512;
 static_assert(sizeof(TarBlock) == kTarBlockSize);
 
-std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive, size_t tarsize);
+std::unique_ptr<Directory> ParseUSTAR(const uint8_t *archive);
+std::string SimplifyName(std::string name);
+
+struct DirInfo {
+  std::string prefix;
+  std::string name;
+
+  std::string getFullPath() const {
+    return prefix + name;
+  }
+};
+
+struct FileInfo {
+  std::string prefix;
+  std::string name;
+  size_t size;
+  const char *data;
+
+  std::string getFullPath() const {
+    return prefix + name;
+  }
+};
+
+// These callbacks return false if we wish to exit the iteration early and return
+// true if it should continue to the next iteration.
+using OnDirCallback = bool (*)(const DirInfo &, void *arg);
+using OnFileCallback = bool (*)(const FileInfo &, void *arg);
+
+void IterateUSTAR(const uint8_t *archive,
+                  OnDirCallback dircallback,
+                  OnFileCallback filecallback,
+                  void *arg = nullptr);
 
 }  // namespace vfs
 

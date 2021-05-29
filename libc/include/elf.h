@@ -77,9 +77,16 @@ inline bool IsValidElf(const Elf32_Ehdr *hdr) {
 #define PF_R 4       // Readable
 #define PF_MASKPROC  // Unspecified
 
-struct ArgInfo {
+// This contains environment information shared between all of userboot. The
+// purpose of this is to emulate a *nix environment. The filesystem for example
+// will want to be exposed here since that is shared between processes.
+struct GlobalEnvInfo {
   const void *raw_vfs_data;
   Handle raw_vfs_data_owner;
+};
+
+struct ArgInfo {
+  GlobalEnvInfo env_info;
 
   // This buffer is packed/unpacked according to PackArgv and UnpackArgv.
   const char *packed_argv;
@@ -88,8 +95,15 @@ struct ArgInfo {
 
 constexpr uint32_t kPageSize4M = 0x00400000;
 
-void LoadElfProgram(const uint8_t *elf_data, const void *raw_vfs_data,
-                    Handle raw_vfs_data_owner, size_t argc = 0,
-                    const char *argv[ARG_MAX] = nullptr);
+extern "C" {
+
+const GlobalEnvInfo *GetGlobalEnvInfo();
+Handle GetRawVFSDataOwner();
+const void *GetRawVFSData();
+
+}  // extern "C"
+
+void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
+                    size_t argc = 0, const char *argv[ARG_MAX] = nullptr);
 
 #endif

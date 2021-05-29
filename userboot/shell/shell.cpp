@@ -1,6 +1,7 @@
 #include <_syscalls.h>
 #include <elf.h>
 #include <vfs.h>
+#include <vfs_helpers.h>
 
 #include <cassert>
 #include <cctype>
@@ -64,42 +65,7 @@ void ArgvFromArgString(const char *argstr, size_t argv_buffer_len,
 
 }  // namespace
 
-extern const void *__raw_vfs_data;
-extern "C" Handle GetRawVFSDataOwner();
-
 int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
-  const void *vfs_loc = __raw_vfs_data;
-  Handle vfs_owner = GetRawVFSDataOwner();
-
-  // The first argument will be a pointer to vfs data in the owner task's
-  // address space. Map some virtual address in this task's address space to
-  // the page with the vfs so we can read from it and construct a vfs object.
-  auto vfs_loc_int = reinterpret_cast<uintptr_t>(vfs_loc);
-  uint32_t loc_offset = vfs_loc_int % kPageSize4M;
-  auto vfs_loc_page = vfs_loc_int - loc_offset;
-  uint8_t *this_vfs_page;
-  sys_share_page(vfs_owner, reinterpret_cast<void **>(&this_vfs_page),
-                 reinterpret_cast<void *>(vfs_loc_page));
-  uint8_t *this_vfs = this_vfs_page + loc_offset;
-
-  // First get the size and do a santity check that the remainder of the vfs
-  // data is still on the page we mapped. Otherwise, we'll need to map another
-  // page.
-  size_t initrd_size;
-  memcpy(&initrd_size, this_vfs, sizeof(initrd_size));
-  printf("initrd size: %u\n", initrd_size);
-  assert(loc_offset + initrd_size <= kPageSize4M &&
-         "FIXME: Will need to allocate more pages. Initrd does not fit in one "
-         "page.");
-
-  // Everything is mapped up. We can safely use this vfs pointer.
-  uint8_t *initrd_data = this_vfs + sizeof(initrd_size);
-
-  std::unique_ptr<vfs::Directory> vfs =
-      vfs::ParseUSTAR(initrd_data, initrd_size);
-  printf("vfs:\n");
-  vfs->Dump();
-
   char buffer[kCmdBufferSize];
   while (1) {
     printf("> ");
@@ -116,18 +82,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     // If it happens to be an executable file, execute it.
     // Note that we can pass `cmd` here because the std::string ctor will parse
     // it as a null-terminated string up to the first argument.
-    if (const vfs::File *file = vfs->getFile(argv[0])) {
-      LoadElfProgram(file->getContents().data(), __raw_vfs_data,
-                     GetRawVFSDataOwner(), argc,
+    if (const vfs::File *file = GetRootDir().getFile(argv[0])) {
+      LoadElfProgram(file->getContents().data(), GetGlobalEnvInfo(), argc,
                      const_cast<const char **>(argv));
     } else {
       printf("Unknown command '%s'\n", argv[0]);
     }
   }
-
-  // This isn't needed since this task's address space is reclaimed once it's
-  // finished, but it's good to know how to use it.
-  sys_unmap_page(initrd_data);
 
   return 0;
 }
