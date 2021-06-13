@@ -67,11 +67,13 @@ set(USER_ELF_LINK_FLAGS
   ${USER_LINK_FLAGS})
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
+set(USER_PROGRAM_DSTS "" CACHE INTERNAL "")
 
-function(add_to_initrd binary)
+function(add_to_initrd binary dst)
   get_filename_component(path ${binary} REALPATH)
   set(USER_PROGRAMS "${USER_PROGRAMS} ${path}" CACHE INTERNAL "")
-  message(STATUS "Add ${binary} to USER_PROGRAMS")
+  set(USER_PROGRAM_DSTS "${USER_PROGRAM_DSTS} ${dst}" CACHE INTERNAL "")
+  message(STATUS "Added ${binary} to USER_PROGRAMS")
 endfunction()
 
 # Attempt to find a target library called "c" that represents a static archive
@@ -128,16 +130,17 @@ endfunction()
 
 # Test for checking that user programs have different address spaces.
 make_flat_user_binary(test_user_program.bin test_user_program.c)
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_program.bin")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_program.bin"
+              "test_user_program.bin")
 
 # Test for checking that we don't have direct access to I/O instructions in usermode.
 make_flat_user_binary(test_user_io_privilege test_user_io_privilege.cpp)
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/test_user_io_privilege"
+              "test_user_io_privilege")
 
 # Userboot stage 1. The sole purpose of this is to run Userboot stage 2,
 # which contains the rest of the userboot logic, but in ELF format.
 make_flat_user_binary(userboot userboot.cpp)
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot")
 
 add_subdirectory(sdk)
 
@@ -159,7 +162,8 @@ add_custom_target(userboot-stage2 ALL
   DEPENDS userboot-stage2.debug
   VERBATIM)
 
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userboot-stage2"
+              "userboot-stage2")
 
 add_subdirectory(userspace-tests)
 add_subdirectory(hello-world)
@@ -179,8 +183,9 @@ add_custom_target(${INITRD}
   COMMAND mkdir -p ${INITRD_DIR}
 
   # Copy user programs + data
-  COMMAND echo "USER_PROGRAMS: ${USER_PROGRAMS}"
-  COMMAND /bin/sh -c "for f in ${USER_PROGRAMS}; do cp $f ${INITRD_DIR} ; done"
+  COMMAND python3 ${CMAKE_SOURCE_DIR}/userboot/make_initrd.py
+          --files ${USER_PROGRAMS} --dests ${USER_PROGRAM_DSTS}
+          --initrd-dir ${INITRD_DIR}
   COMMAND tar --format=ustar -cf ${INITRD}.tar -C ${INITRD_DIR} .
 
   # The initrd will consist of the concatenation of the entry program at the
@@ -190,5 +195,5 @@ add_custom_target(${INITRD}
   COMMAND /bin/sh -c "if ${SHOULD_COPY_INITRD}; then cp ${INITRD} ${INITRD_DST_DIR}/; fi"
 
   COMMENT "Create the initial ramdisk with '${USER_PROGRAMS}'"
-  DEPENDS ${USER_PROGRAMS_LIST}
+  DEPENDS userboot ${USER_PROGRAMS_LIST}
   VERBATIM)

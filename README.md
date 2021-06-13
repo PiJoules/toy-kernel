@@ -90,6 +90,7 @@ TODO: Move the userboot directory into its own repo.
 ```sh
 # Run from root directory
 $ clang-format -style=file -i  $(find . -name '*.h') $(find . -name '*.cpp') libcxx/include/*
+$ yapf -i --style="{indent_width: 2}" userboot/make_initrd.py
 ```
 
 ## TODOs + FIXMEs

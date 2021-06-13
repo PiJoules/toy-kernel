@@ -9,7 +9,8 @@ target_include_directories(shell
   PRIVATE ${LIBCXX_PROJECT_DIR}/include
   PRIVATE ${UTILS_PROJECT_DIR}/include)
 
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/shell")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/shell"
+              "shell")
 
 add_executable(ls ls.cpp)
 target_compile_options(ls PRIVATE ${USER_COMPILE_FLAGS})
@@ -20,4 +21,5 @@ target_include_directories(ls
   PRIVATE ${LIBCXX_PROJECT_DIR}/include
   PRIVATE ${UTILS_PROJECT_DIR}/include)
 
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/ls")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/ls"
+              "bin/ls")

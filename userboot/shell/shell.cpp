@@ -1,5 +1,6 @@
 #include <_syscalls.h>
 #include <elf.h>
+#include <unistd.h>
 #include <vfs.h>
 #include <vfs_helpers.h>
 
@@ -67,8 +68,17 @@ void ArgvFromArgString(const char *argstr, size_t argv_buffer_len,
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
   char buffer[kCmdBufferSize];
+
+  GetRootDir().Dump();
+
   while (1) {
-    printf("> ");
+    // FIXME: Remove this magic number. Since USTAR only supports paths up to
+    // 256 characters long, this will be the buffer.
+    char cwd_buf[256];
+    char *cwd = getcwd(cwd_buf, sizeof(cwd));
+    assert(cwd && "Could not get current working directory.");
+    cwd[sizeof(cwd_buf) - 1] = 0;
+    printf("%s$ ", cwd_buf);
     DebugRead(buffer);
 
     size_t bufferlen = strlen(buffer) + 1;

@@ -35,6 +35,14 @@ class string {
     memcpy(data_, s, size_);
   }
 
+  // Fill constructor.
+  string(size_t n, char c)
+      : size_(n),
+        capacity_(std::max(kDefaultCapacity, size_ + 1)),
+        data_(ext::calloc<char>(capacity_)) {
+    memset(data_, c, size_);
+  }
+
   string(ext::PointerIterator<char> start, ext::PointerIterator<char> last)
       : string(start.get(), static_cast<size_t>(last - start)) {
     assert(last >= start);
@@ -47,7 +55,7 @@ class string {
 
   void push_back(char c) {
     ++size_;
-    if (size_ > capacity_) {
+    if (size_ >= capacity_) {
       // Resize.
       capacity_ <<= 1;
       assert(capacity_ >= size_ && "Not enough capacity after push_back");

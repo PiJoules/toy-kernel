@@ -85,12 +85,15 @@ struct GlobalEnvInfo {
   Handle raw_vfs_data_owner;
 };
 
+// Arginfo contains information on a per-process basis. Stuff like argument info
+// or the directory this process is launched from goes here.
 struct ArgInfo {
   GlobalEnvInfo env_info;
 
   // This buffer is packed/unpacked according to PackArgv and UnpackArgv.
   const char *packed_argv;
   size_t packed_argv_size;
+  const char *pwd;
 };
 
 constexpr uint32_t kPageSize4M = 0x00400000;
@@ -104,6 +107,7 @@ const void *GetRawVFSData();
 }  // extern "C"
 
 void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
-                    size_t argc = 0, const char *argv[ARG_MAX] = nullptr);
+                    size_t argc = 0, const char *argv[ARG_MAX] = nullptr,
+                    const char *pwd = nullptr);
 
 #endif

@@ -14,6 +14,8 @@
 
 namespace vfs {
 
+class Directory;
+
 class Node {
  protected:
   enum NodeKind {
@@ -22,27 +24,36 @@ class Node {
   };
 
  public:
-  Node(NodeKind kind, const std::string &name) : kind_(kind), name_(name) {}
+  // A null parent implies there is no parent directory (ie. this node is the
+  // root of the tree).
   virtual ~Node() {}
 
   void Dump() const;
 
   const std::string &getName() const { return name_; }
+  Directory *getParentDir() { return parent_; }
+  const Directory *getParentDir() const { return parent_; }
 
   NodeKind getKind() const { return kind_; }
+
+ protected:
+  Node(NodeKind kind, const std::string &name, Directory *parent = nullptr);
 
  private:
   void DumpImpl(utils::BitVector &last) const;
 
   const NodeKind kind_;
   std::string name_;
+  Directory *parent_;
 };
 
 class File : public Node {
  public:
-  File(const std::string &name, const std::vector<uint8_t> &contents)
-      : Node(kFileKind, name), contents_(contents) {}
-  File(const std::string &name) : Node(kFileKind, name) {}
+  File(const std::string &name, const std::vector<uint8_t> &contents,
+       Directory *parent)
+      : Node(kFileKind, name, parent), contents_(contents) {}
+  File(const std::string &name, Directory *parent)
+      : Node(kFileKind, name, parent) {}
   const auto &getContents() const { return contents_; }
   bool empty() const { return contents_.empty(); }
   size_t getSize() const { return contents_.size(); }
@@ -66,7 +77,8 @@ class Directory : public Node {
   Directory() : Directory("") {}
 
   // Directory with no files.
-  Directory(const std::string &name) : Node(kDirectoryKind, name) {}
+  Directory(const std::string &name, Directory *parent = nullptr)
+      : Node(kDirectoryKind, name, parent) {}
 
   Directory(const std::string &name, std::vector<std::unique_ptr<Node>> &files)
       : Node(kDirectoryKind, name), nodes_(std::move(files)) {}
@@ -154,9 +166,7 @@ struct DirInfo {
   std::string prefix;
   std::string name;
 
-  std::string getFullPath() const {
-    return prefix + name;
-  }
+  std::string getFullPath() const { return prefix + name; }
 };
 
 struct FileInfo {
@@ -165,20 +175,16 @@ struct FileInfo {
   size_t size;
   const char *data;
 
-  std::string getFullPath() const {
-    return prefix + name;
-  }
+  std::string getFullPath() const { return prefix + name; }
 };
 
-// These callbacks return false if we wish to exit the iteration early and return
-// true if it should continue to the next iteration.
+// These callbacks return false if we wish to exit the iteration early and
+// return true if it should continue to the next iteration.
 using OnDirCallback = bool (*)(const DirInfo &, void *arg);
 using OnFileCallback = bool (*)(const FileInfo &, void *arg);
 
-void IterateUSTAR(const uint8_t *archive,
-                  OnDirCallback dircallback,
-                  OnFileCallback filecallback,
-                  void *arg = nullptr);
+void IterateUSTAR(const uint8_t *archive, OnDirCallback dircallback,
+                  OnFileCallback filecallback, void *arg = nullptr);
 
 }  // namespace vfs
 

@@ -22,6 +22,7 @@ set(USER_SRCS
   printf.cpp
   elf.cpp
   opendir.cpp
+  getcwd.cpp
   _syscalls.cpp)
 
 # FIXME: We should not assume the directory is adjascent to this one.

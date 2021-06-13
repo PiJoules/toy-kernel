@@ -72,7 +72,6 @@ extern "C" int __user_main(void *stack) {
       static_cast<size_t>(&__binary_end - &__binary_start);
   printf("entry binary size: %u\n", entry_binary_size);
 
-  size_t vfs_size = initrd_size - entry_binary_size;
   std::unique_ptr<vfs::Directory> vfs =
       vfs::ParseUSTAR(initrd_data + entry_binary_size);
 
@@ -81,11 +80,8 @@ extern "C" int __user_main(void *stack) {
 
   const vfs::Directory *initrd_dir = vfs.get();
   if (const vfs::File *file = initrd_dir->getFile("userboot-stage2")) {
-    std::unique_ptr<uint8_t> alloc(new uint8_t[vfs_size]);
-    memcpy(alloc.get(), initrd_data + entry_binary_size, vfs_size);
-
     GlobalEnvInfo env_info = {
-        .raw_vfs_data = alloc.get(),
+        .raw_vfs_data = initrd_data + entry_binary_size,
         .raw_vfs_data_owner = sys_get_current_task(),
     };
     LoadElfProgram(file->getContents().data(), &env_info);

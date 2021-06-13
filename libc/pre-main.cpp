@@ -19,6 +19,7 @@ namespace {
 
 GlobalEnvInfo kGlobalEnvInfo;
 vfs::Directory *kRootVFS;
+vfs::Directory *CWD;
 
 uint32_t PageIndex4M(const void *addr) { return (uint32_t)(addr) >> 22; }
 void *PageAddr4M(uint32_t page) { return (void *)(page << 22); }
@@ -67,9 +68,9 @@ extern "C" Handle GetRawVFSDataOwner() {
 }
 extern "C" const void *GetRawVFSData() { return kGlobalEnvInfo.raw_vfs_data; }
 
-const vfs::Directory &GetRootDir() {
-  return *kRootVFS;
-}
+const vfs::Directory &GetRootDir() { return *kRootVFS; }
+
+const vfs::Directory &GetCWD() { return *CWD; }
 
 // Populate argv with pointers into packed_argv. Return the number of arguments
 // in argv (which will be argc).
@@ -145,6 +146,14 @@ extern "C" int pre_main(void **arg_ptr) {
 
   auto root_vfs = ParseUSTARFromRawData();
   kRootVFS = root_vfs.get();
+
+  // Get the current working directory.
+  if (!arginfo.pwd) {
+    CWD = kRootVFS;
+  } else {
+    CWD = kRootVFS->getDir(arginfo.pwd);
+    assert(CWD && "Could not find pwd.");
+  }
 
   char packed_argv[arginfo.packed_argv_size];
   sys_copy_from_task(parent, packed_argv, arginfo.packed_argv,

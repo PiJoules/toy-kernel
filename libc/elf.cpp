@@ -28,7 +28,7 @@ void PackArgv(size_t argc, const char **argv, size_t packed_size,
 }  // namespace
 
 void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
-                    size_t argc, const char **argv) {
+                    size_t argc, const char **argv, const char *pwd) {
   const auto *hdr = reinterpret_cast<const Elf32_Ehdr *>(elf_data);
   assert(IsValidElf(hdr) && "Invalid elf program");
 
@@ -120,6 +120,9 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
   } else {
     arginfo.packed_argv = nullptr;
   }
+
+  arginfo.pwd = pwd;
+
   sys::Handle handle = sys::CreateTask(elf_data + start_offset, cpysize,
                                        /*arg=*/&arginfo,
                                        /*entry_offset=*/entry_offset);

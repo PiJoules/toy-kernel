@@ -19,4 +19,5 @@ target_include_directories(userspace-tests.debug
   PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
 target_include_directories(userspace-tests.debug PRIVATE ${UTILS_PROJECT_DIR}/include/)
 
-add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userspace-tests")
+add_to_initrd("${CMAKE_CURRENT_BINARY_DIR}/userspace-tests"
+              "tests/userspace-tests")

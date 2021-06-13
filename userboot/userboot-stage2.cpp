@@ -35,9 +35,9 @@ sys::Handle RunFlatUserBinary(const vfs::Directory &vfs,
 int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
   printf("\n=== USERBOOT STAGE 2 ===\n\n");
   printf(
-      "  This contains the rest of the userboot code. Userboot just simply \n"
-      "  launches a user shell that can be used for running various \n"
-      "  programs.\n\n");
+      "  This contains the rest of the userboot code. Userboot exists to run \n"
+      "  a few test programs and launch into a user shell that can be used\n"
+      "  for running various programs.\n\n");
 
   // Check starting a user task via syscall.
   printf("Trying test_user_program.bin ...\n");

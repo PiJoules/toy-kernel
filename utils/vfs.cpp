@@ -36,9 +36,14 @@ void InplaceRStrip(std::string &path) {
 //   "a/b/c" -> ("a", "b/c")
 //   "a/" -> ("a", "")
 //   "a" -> ("a", "")
+//   "/a" -> ("/", "a")
+//   "/a/b/c" -> ("/", "a/b/c")
 //
 std::pair<std::string, std::string> SplitHead(const std::string &path) {
-  assert(path[0] != kPathSeparator);
+  if (path[0] == kPathSeparator)
+    return std::pair(std::string(1, kPathSeparator),
+                     std::string(path.begin() + 1, path.end()));
+
   std::string::iter_t sep(nullptr);
   if ((sep = path.find(kPathSeparator)) != path.end()) {
     // Do not include the path separator in either the head or tail.
@@ -47,6 +52,12 @@ std::pair<std::string, std::string> SplitHead(const std::string &path) {
     return std::pair(head, rest);
   }
   return std::pair(path, std::string());
+}
+
+Directory *GetRootDir(Node *node) {
+  Directory *parent;
+  while ((parent = node->getParentDir()) != nullptr) { node = parent; }
+  return rtti::cast<Directory>(node);
 }
 
 const Node *GetNodeImpl(const Directory &dir, const std::string &path);
@@ -59,6 +70,9 @@ Node *GetNodeImpl(Directory &dir, const std::string &path) {
   if (name == ".") return &dir;
 
   auto head_tail = SplitHead(name);
+
+  if (head_tail.first == std::string(1, kPathSeparator))
+    return GetNodeImpl(*GetRootDir(&dir), head_tail.second);
 
   // Base case: only one node.
   if (head_tail.second.empty()) {
@@ -169,6 +183,9 @@ void Node::DumpImpl(utils::BitVector &last) const {
 }
 #endif
 
+Node::Node(NodeKind kind, const std::string &name, Directory *parent)
+    : kind_(kind), name_(name), parent_(parent) {}
+
 const Node *Directory::getNode(const std::string &path) const {
   return GetNodeImpl(*this, path);
 }
@@ -207,7 +224,7 @@ Directory &Directory::mkdir_once(const std::string &path) {
   if (Node *node = getNode(normalized_name))
     return *rtti::cast<Directory>(node);
 
-  std::unique_ptr<Node> dir(new Directory(normalized_name));
+  std::unique_ptr<Node> dir(new Directory(normalized_name, this));
   nodes_.push_back(std::move(dir));
   return *rtti::cast<Directory>(nodes_.back().get());
 }
@@ -237,15 +254,13 @@ File &Directory::mkfile(const std::string &name) {
   }
   assert(!path.empty() && "Missing filename");
 
-  std::unique_ptr<Node> file(new File(path));
+  std::unique_ptr<Node> file(new File(path, this));
   current_dir->nodes_.push_back(std::move(file));
   return *rtti::cast<File>(current_dir->nodes_.back().get());
 }
 
-void IterateUSTAR(const uint8_t *archive,
-                  OnDirCallback dircallback,
-                  OnFileCallback filecallback,
-                  void *arg) {
+void IterateUSTAR(const uint8_t *archive, OnDirCallback dircallback,
+                  OnFileCallback filecallback, void *arg) {
   const TarBlock *tar = reinterpret_cast<const TarBlock *>(archive);
   while (!(IsZeroPage(reinterpret_cast<const uint8_t *>(tar)) &&
            IsZeroPage(reinterpret_cast<const uint8_t *>(tar + 1)))) {
@@ -257,11 +272,10 @@ void IterateUSTAR(const uint8_t *archive,
     if (tar->type == kDirectory) {
       assert(!filesize && "A directory should have no file size.");
       DirInfo dirinfo = {
-        .prefix = prefix,
-        .name = name,
+          .prefix = prefix,
+          .name = name,
       };
-      if (!dircallback(dirinfo, arg))
-        return;
+      if (!dircallback(dirinfo, arg)) return;
       ++tar;
       continue;
     }
@@ -277,13 +291,12 @@ void IterateUSTAR(const uint8_t *archive,
                             : (filesize / kTarBlockSize);
 
     FileInfo fileinfo = {
-      .prefix = prefix,
-      .name = name,
-      .size = filesize,
-      .data = reinterpret_cast<const char *>(tar),
+        .prefix = prefix,
+        .name = name,
+        .size = filesize,
+        .data = reinterpret_cast<const char *>(tar),
     };
-    if (!filecallback(fileinfo, arg))
-      return;
+    if (!filecallback(fileinfo, arg)) return;
 
     tar += num_chunks;
   }

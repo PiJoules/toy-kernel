@@ -6,5 +6,6 @@
 #include <memory>
 
 const vfs::Directory &GetRootDir();
+const vfs::Directory &GetCWD();
 
 #endif
