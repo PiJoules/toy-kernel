@@ -2,6 +2,7 @@
  * This contains code that should run before the start of main.
  */
 
+#include <_log.h>
 #include <_syscalls.h>
 #include <elf.h>
 #include <limits.h>
@@ -93,20 +94,20 @@ extern "C" int pre_main(void **arg_ptr) {
   auto val = sys_map_page(heap_start);
   switch (val) {
     case MAP_UNALIGNED_ADDR:
-      printf(
+      ERROR(
           "Attempting to map virtual address %p which is not aligned to "
           "page.\n",
           heap_start);
       return kExitFailure;
     case MAP_ALREADY_MAPPED:
-      printf("Attempting to map virtual address %p which is already mapped.\n",
-             heap_start);
+      ERROR("Attempting to map virtual address %p which is already mapped.\n",
+            heap_start);
       return kExitFailure;
     case MAP_OOM:
-      printf("No more physical memory available!\n");
+      ERROR("No more physical memory available!\n");
       return kExitFailure;
     default:
-      printf("Allocated heap page at %p.\n", heap_start);
+      DEBUG("Allocated heap page at %p.\n", heap_start);
   }
 
   uint8_t *heap_bottom = (uint8_t *)heap_start;

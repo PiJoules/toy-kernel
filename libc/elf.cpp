@@ -1,3 +1,4 @@
+#include <_log.h>
 #include <_syscalls.h>
 #include <assert.h>
 #include <elf.h>
@@ -35,10 +36,10 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
   // NOTE: A binary can still be marked as a shared object file (ET_DYN) yet
   // still be an executable. See the answers in
   // https://stackoverflow.com/q/34519521/2775471.
-  printf("program type: %d\n", hdr->e_type);
+  DEBUG("program type: %d\n", hdr->e_type);
 
   uint32_t vaddr_entry = hdr->e_entry;
-  printf("program entry: %p\n", (void *)vaddr_entry);
+  DEBUG("program entry: %p\n", (void *)vaddr_entry);
 
   // Represents the base virtual address that this DSO should be loaded to. For
   // non-PIEs, it should start at USER_START. For PIEs, it will probably start
@@ -60,17 +61,17 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
 
     size_t offset = p_entry->p_offset;
     assert(p_entry->p_filesz >= 0);
-    printf("LOAD segment Offset: %x, VirtAddr: %p, filesz: %x\n", offset,
-           (void *)v_begin, size);
+    DEBUG("LOAD segment Offset: %x, VirtAddr: %p, filesz: %x\n", offset,
+          (void *)v_begin, size);
 
     if (!size) {
-      printf("Skipping segment of size 0\n");
+      DEBUG("Skipping segment of size 0\n");
       continue;
     }
 
     if (end_offset && end_offset > offset + size) {
-      printf(
-          "WARNING: The next LOAD segment does not come after the previous "
+      WARN(
+          "The next LOAD segment does not come after the previous "
           "load (%x + %x < %x).\n",
           offset, size, end_offset);
       __builtin_trap();
@@ -86,12 +87,11 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
   uint32_t entry_offset = vaddr_entry - static_cast<uint32_t>(vaddr_start);
 
   // Use these as a reasonable buffer size to map points to.
-  printf("base virtual address: %p\n", (void *)vaddr_start);
-  printf("end virtual address: %p\n", (void *)vaddr_end);
-
-  printf("entry offset: %x\n", entry_offset);
-  printf("start offset: %x\n", static_cast<uint32_t>(start_offset));
-  printf("end offset: %x\n", end_offset);
+  DEBUG("base virtual address: %p\n", (void *)vaddr_start);
+  DEBUG("end virtual address: %p\n", (void *)vaddr_end);
+  DEBUG("entry offset: %x\n", entry_offset);
+  DEBUG("start offset: %x\n", static_cast<uint32_t>(start_offset));
+  DEBUG("end offset: %x\n", end_offset);
   assert(entry_offset < end_offset &&
          "Entry point exceeds end of the last LOADable address");
 

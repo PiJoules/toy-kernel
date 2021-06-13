@@ -69,6 +69,9 @@ Node *GetNodeImpl(Directory &dir, const std::string &path) {
   // Current directory.
   if (name == ".") return &dir;
 
+  // Root Directory.
+  if (name[0] == kPathSeparator && name.size() == 1) return GetRootDir(&dir);
+
   auto head_tail = SplitHead(name);
 
   if (head_tail.first == std::string(1, kPathSeparator))
@@ -129,12 +132,17 @@ std::string SimplifyName(std::string name) {
 
   auto found_sep = name.find(kPathSeparator);
   if (found_sep == name.end()) {
-    // "dirname"
+    // No path separator (just a file): "dirname"
+    return name;
+  }
+
+  if (found_sep == name.begin() && name.size() == 1) {
+    // Root directory: "/"
     return name;
   }
 
   if (found_sep == name.end() - 1) {
-    // "dirname/"
+    // Path separator only at end of dirname: "dirname/"
     name.erase(found_sep, name.end());
   }
 

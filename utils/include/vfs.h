@@ -74,7 +74,7 @@ class File : public Node {
 class Directory : public Node {
  public:
   // Constructor for a root directory.
-  Directory() : Directory("") {}
+  Directory() : Directory("/") {}
 
   // Directory with no files.
   Directory(const std::string &name, Directory *parent = nullptr)
