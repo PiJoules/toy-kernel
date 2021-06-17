@@ -1,6 +1,12 @@
 #ifndef NEW_H_
 #define NEW_H_
 
+namespace std {
+
+enum class align_val_t : size_t {};
+
+}  // namespace std
+
 // Declarations for placement new.
 inline void *operator new(size_t, void *p) { return p; }
 inline void *operator new[](size_t, void *p) { return p; }

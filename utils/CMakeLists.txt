@@ -53,5 +53,5 @@ if (DEFINED BUILD_USER_UTILS)
   target_compile_options(user_utils_pic
     PRIVATE ${USER_COMPILE_FLAGS}
     PRIVATE -fPIC)
-  target_link_libraries(user_utils_pic user_libcxx)
+  target_link_libraries(user_utils_pic user_libcxx_pic_static)
 endif()

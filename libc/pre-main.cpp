@@ -12,10 +12,6 @@
 #include <cstdio>
 #include <cstring>
 
-// NOTE: This should always have the same value as USER_START in the kernel's
-// paging.h.
-#define USER_START UINT32_C(0x40000000)  // 1GB
-
 namespace {
 
 GlobalEnvInfo kGlobalEnvInfo;

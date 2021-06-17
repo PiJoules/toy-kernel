@@ -29,7 +29,7 @@ extern void *ucalloc(size_t num, size_t size);
 
 void *malloc(size_t size) { return user::umalloc(size); }
 
-void *malloc(size_t size, uint32_t alignment) {
+void *aligned_alloc(size_t alignment, size_t size) {
   return user::umalloc(size, alignment);
 }
 
@@ -40,4 +40,5 @@ void *realloc(void *ptr, size_t new_size) {
 }
 
 void *calloc(size_t num, size_t size) { return user::ucalloc(num, size); }
+
 #endif

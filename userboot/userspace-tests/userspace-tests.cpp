@@ -251,7 +251,7 @@ TEST(Alignment) {
   free(x);
 
   uint32_t alignment = 4096;
-  x = malloc(alignment * 2, alignment);
+  x = aligned_alloc(alignment, alignment * 2);
   ASSERT_EQ(reinterpret_cast<uintptr_t>(x) % alignment, 0);
   free(x);
 }
@@ -1285,6 +1285,15 @@ TEST(RTTICasts) {
 
 TEST_SUITE(RTTI) { RUN_TEST(RTTICasts); }
 
+TEST(HelloWorld) { ASSERT_EQ(system("/hello-world"), 0); }
+
+TEST(HelloWorldPICStatic) { ASSERT_EQ(system("/hello-world-PIC-static"), 0); }
+
+TEST_SUITE(HelloWorldTests) {
+  RUN_TEST(HelloWorld);
+  RUN_TEST(HelloWorldPICStatic);
+}
+
 }  // namespace
 
 int main() {
@@ -1307,6 +1316,7 @@ int main() {
   tests.RunSuite(TupleSuite);
   tests.RunSuite(VFS);
   tests.RunSuite(RTTI);
+  tests.RunSuite(HelloWorldTests);
 
   return 0;
 }

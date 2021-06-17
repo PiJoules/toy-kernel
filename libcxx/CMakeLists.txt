@@ -25,6 +25,13 @@ if (DEFINED BUILD_USER_LIBCXX)
   target_include_directories(user_libcxx PRIVATE include/)
   target_compile_options(user_libcxx PRIVATE ${USER_COMPILE_FLAGS})
   target_include_directories(user_libcxx PRIVATE ${LIBC_PROJECT_DIR}/include/)
+
+  add_library(user_libcxx_pic_static STATIC ${USER_SRCS} ${COMMON_SRCS})
+  target_include_directories(user_libcxx_pic_static PRIVATE include/)
+  target_include_directories(user_libcxx_pic_static PRIVATE ${LIBC_PROJECT_DIR}/include/)
+  target_compile_options(user_libcxx_pic_static
+    PRIVATE ${USER_COMPILE_FLAGS}
+    PRIVATE -fPIC)
 endif()
 
 if (DEFINED BUILD_KERNEL_LIBCXX)
