@@ -4,8 +4,6 @@
 # after booting up. All other features that need to be loaded can be done
 # through some custom user program that can replace this.
 #
-# This is all done through QEMU without graphics and communicated over serial.
-#
 # CMake code in here should not be dependent on any cmake in the parent directory.
 #
 # CMake Arguments:
@@ -29,42 +27,45 @@ else()
   set(SHOULD_COPY_INITRD false)
 endif()
 
-# (Minimum) Flags needed for compiling C source files to object files.
-set(USER_C_FLAGS
-  -fno-PIC)
-
-# (Minimum) Flags needed for compiling CXX source files to object files.
-set(USER_CXX_FLAGS
-  -fno-PIC)
-
-# (Minimum) Flags needed for linking object files to a final executable.
-set(USER_LINK_FLAGS
-  # Do not use any system default library. This will manually be linked in.
-  -nostdlib
-
-  # We do not yet support PIC.
-  -Wl,-no-pie
-
-  # We will need to place specific sections at specific addresses.
-  -T ${CMAKE_CURRENT_SOURCE_DIR}/user_elf_link.ld)
-
 # Flags used for user programs within this repo.
 set(USER_COMPILE_FLAGS
+  -fvisibility=hidden
   -fno-stack-protector
   -g
-  -fno-exceptions
-  -fno-rtti
   -fdata-sections
   -ffunction-sections
   -ftrivial-auto-var-init=pattern
   -nostdinc  # Do not use system headers.
-  ${USER_CXX_FLAGS})
+  -fPIC)
+
+# (Minimum) Flags needed for compiling C source files to object files.
+set(USER_C_FLAGS
+  ${USER_COMPILE_FLAGS})
+
+# (Minimum) Flags needed for compiling CXX source files to object files.
+set(USER_CXX_FLAGS
+  ${USER_COMPILE_FLAGS}
+  -fno-exceptions
+  -fno-rtti)
+
+add_compile_options(
+  "$<$<COMPILE_LANGUAGE:C>:${USER_C_FLAGS}>"
+  "$<$<COMPILE_LANGUAGE:CXX>:${USER_CXX_FLAGS}>"
+)
+
+# (Minimum) Flags needed for linking object files to a final executable.
+set(USER_LINK_FLAGS
+  # Do not use any system default library. This will manually be linked in.
+  -nostdlib)
 
 # Flags used for user programs within this repo.
 set(USER_ELF_LINK_FLAGS
+  ${USER_LINK_FLAGS}
   -Wl,--gc-sections
   -Wl,--fatal-warnings
-  ${USER_LINK_FLAGS})
+  -fPIE)
+
+add_link_options(${USER_ELF_LINK_FLAGS})
 
 set(USER_PROGRAMS "" CACHE INTERNAL "")
 set(USER_PROGRAM_DSTS "" CACHE INTERNAL "")
@@ -78,18 +79,20 @@ endfunction()
 
 # Attempt to find a target library called "c" that represents a static archive
 # libc implementation.
-# FIXME: We should not assume the directory is adjascent to this one.
+# FIXME: We should not assume these directories are adjascent to this one.
 set(LIBC_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libc)
+set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
+set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
+
+include_directories(
+  ${LIBC_PROJECT_DIR}/include
+  ${LIBCXX_PROJECT_DIR}/include
+  ${UTILS_PROJECT_DIR}/include)
+
 set(BUILD_USER_LIBC 1)
 add_subdirectory(${LIBC_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libc_build)
-
-# FIXME: We should not assume the directory is adjascent to this one.
-set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
 set(BUILD_USER_LIBCXX 1)
 add_subdirectory(${LIBCXX_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_libcxx_build)
-
-# FIXME: We should not assume the directory is adjascent to this one.
-set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
 set(BUILD_USER_UTILS 1)
 add_subdirectory(${UTILS_PROJECT_DIR} ${CMAKE_CURRENT_BINARY_DIR}/user_utils_build)
 
@@ -100,11 +103,9 @@ function(make_flat_user_binary name)
   set(libname "${name}_lib")
   add_library(${libname} STATIC "${ARGN}")
   target_compile_options(${libname}
-    PRIVATE ${USER_COMPILE_FLAGS})
+    PRIVATE ${USER_CXX_FLAGS}
+    PRIVATE -fno-PIC)
   target_include_directories(${libname} PRIVATE include/)
-  target_include_directories(${libname} PRIVATE ${LIBC_PROJECT_DIR}/include/)
-  target_include_directories(${libname} PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_include_directories(${libname} PRIVATE ${UTILS_PROJECT_DIR}/include/)
 
   add_custom_target(${name} ALL
     COMMAND ${CMAKE_LINKER} -T ${CMAKE_CURRENT_SOURCE_DIR}/user_link.ld -m elf_i386
@@ -117,14 +118,14 @@ function(make_flat_user_binary name)
 
             --no-whole-archive
             $<TARGET_FILE:${libname}>
-            $<TARGET_FILE:user_libc>
-            $<TARGET_FILE:user_libcxx>
-            $<TARGET_FILE:user_utils>
+            $<TARGET_FILE:user_libc_nopic>
+            $<TARGET_FILE:user_libcxx_nopic>
+            $<TARGET_FILE:user_utils_nopic>
 
             --end-group
 
             COMMENT "Linking ${name}"
-    DEPENDS bootstrap_lib ${libname} user_libc user_libcxx
+    DEPENDS bootstrap_lib ${libname} user_libc_nopic user_libcxx_nopic user_utils_nopic
     VERBATIM)
 endfunction()
 
@@ -148,13 +149,8 @@ add_subdirectory(sdk)
 # giving us better debugability and something closer to a binary we could
 # normally compile on a linux shell without too many special flags.
 add_executable(userboot-stage2.debug userboot-stage2.cpp)
-target_compile_options(userboot-stage2.debug PRIVATE ${USER_COMPILE_FLAGS})
-target_link_options(userboot-stage2.debug PRIVATE ${USER_ELF_LINK_FLAGS})
-target_link_libraries(userboot-stage2.debug sdk_cxx_static)
+target_link_libraries(userboot-stage2.debug sdk_cxx_pic_static)
 target_include_directories(userboot-stage2.debug PRIVATE include/)
-target_include_directories(userboot-stage2.debug PRIVATE ${LIBC_PROJECT_DIR}/include/)
-target_include_directories(userboot-stage2.debug PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-target_include_directories(userboot-stage2.debug PRIVATE ${UTILS_PROJECT_DIR}/include/)
 
 add_custom_target(userboot-stage2 ALL
   COMMAND ${CMAKE_OBJCOPY} --strip-all userboot-stage2.debug userboot-stage2

@@ -51,6 +51,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
     printf("%s$ ", cwd_buf);
     DebugRead(buffer);
 
+    if (strcmp(buffer, "exit") == 0) break;
+
     system(buffer);
   }
 

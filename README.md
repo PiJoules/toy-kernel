@@ -10,6 +10,9 @@ which was referenced many times when building this. Thanks to the devs on them.
   - `clang` is nice because it doesn't require building a full cross-compiler
     toolchain.
 - lld 11.0.0
+- ld 2.35.2
+  - FIXME: Turns out I've been using the system linker for flat binaries. I
+    should get rid of this and just use lld.
 - CMake 3.15.4
 - tar 1.32
   - Used for making the filesystem used by userboot.

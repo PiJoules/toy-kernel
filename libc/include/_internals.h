@@ -18,4 +18,6 @@
 #endif
 #endif
 
+#define __EXPORT __attribute__((visibility("default")))
+
 #endif

@@ -1,10 +1,7 @@
 ENTRY(_start)
 
 SECTIONS {
-  /* This should be the same value as USER_START. */
-  . = 1024M;
-
-  .text 1024M : {
+  .text : {
     *(._start)
     *(.text)
     *(.text.*)

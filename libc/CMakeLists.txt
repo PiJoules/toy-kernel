@@ -36,31 +36,15 @@ set(UTILS_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../utils)
 set(LIBCXX_PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../libcxx)
 
 if (DEFINED BUILD_USER_LIBC AND NOT TARGET user_libc)
-  add_library(user_libc STATIC ${USER_SRCS} ${COMMON_SRCS})
-  target_include_directories(user_libc PRIVATE include/)
-  target_include_directories(user_libc PRIVATE ${UTILS_PROJECT_DIR}/include/)
-  target_include_directories(user_libc PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_libc PRIVATE ${USER_COMPILE_FLAGS})
+  add_library(user_libc_nopic STATIC ${USER_SRCS} ${COMMON_SRCS})
+  target_compile_options(user_libc_nopic
+    PRIVATE -fno-PIC)
 
-  if (NOT DEFINED USER_COMPILE_FLAGS)
-    MESSAGE(FATAL_ERROR "Missing USER_COMPILE_FLAGS")
-  endif()
+  # FIXME: Uncomment this once we support dynamically linking + loading shared
+  # libs.
+  #add_library(user_libc_shared SHARED ${USER_SRCS} ${COMMON_SRCS})
 
-  add_library(user_libc_shared SHARED ${USER_SRCS} ${COMMON_SRCS})
-  target_include_directories(user_libc_shared PRIVATE include/)
-  target_include_directories(user_libc_shared PRIVATE ${UTILS_PROJECT_DIR}/include/)
-  target_include_directories(user_libc_shared PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_libc_shared
-    PRIVATE ${USER_COMPILE_FLAGS}
-    PRIVATE -fPIC)
-
-  add_library(user_libc_pic STATIC ${USER_SRCS} ${COMMON_SRCS})
-  target_include_directories(user_libc_pic PRIVATE include/)
-  target_include_directories(user_libc_pic PRIVATE ${UTILS_PROJECT_DIR}/include/)
-  target_include_directories(user_libc_pic PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_libc_pic
-    PRIVATE ${USER_COMPILE_FLAGS}
-    PRIVATE -fPIC)
+  add_library(user_libc_pic_static STATIC ${USER_SRCS} ${COMMON_SRCS})
 endif()
 
 if (DEFINED BUILD_KERNEL_LIBC AND NOT TARGET kernel_libc)

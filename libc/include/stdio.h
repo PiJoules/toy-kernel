@@ -8,6 +8,7 @@
 
 __BEGIN_CDECLS
 
+__EXPORT
 int printf(const char *s, ...);
 void put(char c);  // FIXME: This should be putchar.
 int putchar(int c);

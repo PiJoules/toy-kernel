@@ -1285,13 +1285,13 @@ TEST(RTTICasts) {
 
 TEST_SUITE(RTTI) { RUN_TEST(RTTICasts); }
 
-TEST(HelloWorld) { ASSERT_EQ(system("/hello-world"), 0); }
-
 TEST(HelloWorldPICStatic) { ASSERT_EQ(system("/hello-world-PIC-static"), 0); }
 
-TEST_SUITE(HelloWorldTests) {
-  RUN_TEST(HelloWorld);
+TEST(Ls) { ASSERT_EQ(system("/bin/ls"), 0); }
+
+TEST_SUITE(RunProgramTests) {
   RUN_TEST(HelloWorldPICStatic);
+  RUN_TEST(Ls);
 }
 
 }  // namespace
@@ -1316,7 +1316,7 @@ int main() {
   tests.RunSuite(TupleSuite);
   tests.RunSuite(VFS);
   tests.RunSuite(RTTI);
-  tests.RunSuite(HelloWorldTests);
+  tests.RunSuite(RunProgramTests);
 
   return 0;
 }

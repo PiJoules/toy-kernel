@@ -31,27 +31,14 @@ if (DEFINED BUILD_KERNEL_UTILS)
 endif()
 
 if (DEFINED BUILD_USER_UTILS)
-  add_library(user_utils STATIC ${COMMON_SRCS} ${USER_SRCS})
-  target_include_directories(user_utils PRIVATE include/)
-  target_include_directories(user_utils PRIVATE ${LIBC_PROJECT_DIR}/include/)
-  target_include_directories(user_utils PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_utils PRIVATE ${USER_COMPILE_FLAGS})
-  target_link_libraries(user_utils user_libcxx)
+  add_library(user_utils_nopic STATIC ${COMMON_SRCS} ${USER_SRCS})
+  target_include_directories(user_utils_nopic PRIVATE include/)
+  target_compile_options(user_utils_nopic
+    PRIVATE -fno-PIC)
 
   add_library(user_utils_shared SHARED ${COMMON_SRCS} ${USER_SRCS})
   target_include_directories(user_utils_shared PRIVATE include/)
-  target_include_directories(user_utils_shared PRIVATE ${LIBC_PROJECT_DIR}/include/)
-  target_include_directories(user_utils_shared PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_utils_shared
-    PRIVATE ${USER_COMPILE_FLAGS}
-    PRIVATE -fPIC)
 
-  add_library(user_utils_pic STATIC ${COMMON_SRCS} ${USER_SRCS})
-  target_include_directories(user_utils_pic PRIVATE include/)
-  target_include_directories(user_utils_pic PRIVATE ${LIBC_PROJECT_DIR}/include/)
-  target_include_directories(user_utils_pic PRIVATE ${LIBCXX_PROJECT_DIR}/include/)
-  target_compile_options(user_utils_pic
-    PRIVATE ${USER_COMPILE_FLAGS}
-    PRIVATE -fPIC)
-  target_link_libraries(user_utils_pic user_libcxx_pic_static)
+  add_library(user_utils_pic_static STATIC ${COMMON_SRCS} ${USER_SRCS})
+  target_include_directories(user_utils_pic_static PRIVATE include/)
 endif()

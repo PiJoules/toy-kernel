@@ -24,6 +24,89 @@ void PackArgv(size_t argc, const char **argv, size_t packed_size,
   }
 }
 
+class ElfHelper {
+ public:
+  ElfHelper(const uint8_t *elf_data) : elf_data_(elf_data) {}
+
+  const uint8_t *getData() const { return elf_data_; }
+
+  // Header helper functions.
+  const Elf32_Ehdr *getElfHdr() const {
+    return reinterpret_cast<const Elf32_Ehdr *>(elf_data_);
+  }
+
+  const Elf32_Shdr *getSectionHdr() const {
+    return reinterpret_cast<const Elf32_Shdr *>(elf_data_ +
+                                                getElfHdr()->e_shoff);
+  }
+
+  const Elf32_Shdr *getSectionHdr(const char *section_name) const {
+    const auto *shdr = getSectionHdr();
+    const char *strtab = getSectionHdrStrTab();
+    for (int i = 0; i < getElfHdr()->e_shnum; ++i) {
+      const auto &section_hdr = shdr[i];
+      const char *name = strtab + section_hdr.sh_name;
+      if (strcmp(section_name, name) == 0) return &section_hdr;
+    }
+    return nullptr;
+  };
+
+  const Elf32_Shdr &getStrTabHdr() const {
+    return getSectionHdr()[getElfHdr()->e_shstrndx];
+  }
+
+  const Elf32_Shdr *getSymTabHdr() const {
+    return reinterpret_cast<const Elf32_Shdr *>(getSectionHdr(".symtab"));
+  }
+
+  // Section helper functions.
+  const uint8_t *getSection(const Elf32_Shdr &section_hdr) const {
+    return elf_data_ + section_hdr.sh_offset;
+  }
+
+  const uint8_t *getSection(const char *section_name) const {
+    if (const Elf32_Shdr *section_hdr = getSectionHdr(section_name))
+      return getSection(*section_hdr);
+    return nullptr;
+  }
+
+  const char *getSectionHdrStrTab() const {
+    return reinterpret_cast<const char *>(elf_data_) + getStrTabHdr().sh_offset;
+  }
+
+  const char *getStrTab() const {
+    return reinterpret_cast<const char *>(getSection(".strtab"));
+  }
+
+  const Elf32_Sym *getSymTab() const {
+    return reinterpret_cast<const Elf32_Sym *>(getSection(".symtab"));
+  }
+
+  const Elf32_Sym *getSymbol(const char *symbol_name) const {
+    if (const auto *symtab = getSymTab()) {
+      size_t symtab_size = static_cast<size_t>(getSymTabHdr()->sh_size);
+      assert(symtab_size % sizeof(Elf32_Sym) == 0 &&
+             "Symbol table size is not multiple of symbol struct.");
+      size_t num_syms = symtab_size / sizeof(Elf32_Sym);
+      for (int i = 0; i < num_syms; ++i) {
+        const Elf32_Sym &symbol = symtab[i];
+        if (strcmp(symbol_name, &getStrTab()[symbol.st_name]) == 0)
+          return &symbol;
+      }
+    }
+    return nullptr;
+  }
+
+  size_t getSymbolIndex(const Elf32_Sym &symbol) const {
+    return static_cast<size_t>(reinterpret_cast<const uint8_t *>(&symbol) -
+                               reinterpret_cast<const uint8_t *>(getSymTab())) /
+           sizeof(Elf32_Sym);
+  }
+
+ private:
+  const uint8_t *elf_data_;
+};
+
 }  // namespace
 
 void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
@@ -32,6 +115,8 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
   assert(IsValidElf(hdr) && "Invalid elf program");
 
   DEBUG("elf data loc: %p\n", elf_data);
+
+  ElfHelper elf(elf_data);
 
   // NOTE: A binary can still be marked as a shared object file (ET_DYN) yet
   // still be an executable. See the answers in
@@ -168,6 +253,59 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
                reloc_type);
       }
     }
+
+    const Elf32_Sym *symtab =
+        (Elf32_Sym *)get_dynamic_entry(dynamic, DT_SYMTAB);
+    if (symtab) {
+      DEBUG("symtab: %p\n", symtab);
+    } else {
+      WARN("No SYMTAB\n");
+    }
+  }
+
+  // Section header.
+  const auto *shdr =
+      reinterpret_cast<const Elf32_Shdr *>(elf_data + hdr->e_shoff);
+  const auto &strtab_hdr = shdr[hdr->e_shstrndx];
+  DEBUG("shdr: %x\n", hdr->e_shoff);
+  DEBUG("shdr num: %x\n", hdr->e_shnum);
+  DEBUG("shstrndx: %x\n", hdr->e_shstrndx);
+  DEBUG("strtab hdr: %x\n", (uint8_t *)&strtab_hdr - elf_data);
+  DEBUG("strtab offset: %x\n", strtab_hdr.sh_offset);
+
+  const char *shstrtab = elf.getSectionHdrStrTab();
+  const char *strtab = elf.getStrTab();
+  const uint8_t *symtab = elf.getSection(".symtab");
+
+  if (symtab)
+    DEBUG("symtab: %x\n", (uint8_t *)symtab - elf_data);
+  else
+    WARN("NO SYMBOL TABLE!\n");
+
+  if (shstrtab)
+    DEBUG("shstrtab: %x\n", (uint8_t *)shstrtab - elf_data);
+  else
+    WARN("NO SECTION HEADER STRING TABLE!\n");
+
+  if (strtab)
+    DEBUG("strtab: %x\n", (uint8_t *)strtab - elf_data);
+  else
+    WARN("NO STRING TABLE!\n");
+
+  const Elf32_Sym *got = elf.getSymbol("_GLOBAL_OFFSET_TABLE_");
+  if (got) {
+    DEBUG("got: %x\n", (uint8_t *)got - elf_data);
+    DEBUG("got symtab idx: %u\n", elf.getSymbolIndex(*got));
+    DEBUG("got size: %u\n", got->st_size);
+  } else
+    WARN("NO GOT!\n");
+
+  // Initialize the bss section to zeros.
+  const Elf32_Shdr *bss_hdr = elf.getSectionHdr(".bss");
+  if (bss_hdr) {
+    size_t section_size = static_cast<size_t>(bss_hdr->sh_size);
+    size_t bss_offset = bss_hdr->sh_addr - first_loadable_segment->p_vaddr;
+    memset(program.get() + bss_offset, 0, section_size);
   }
 
   ArgInfo arginfo = {

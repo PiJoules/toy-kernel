@@ -78,6 +78,19 @@ inline bool IsValidElf(const Elf32_Ehdr *hdr) {
 #define PF_R 4       // Readable
 #define PF_MASKPROC  // Unspecified
 
+typedef struct elf32_shdr {
+  Elf32_Word sh_name;
+  Elf32_Word sh_type;
+  Elf32_Word sh_flags;
+  Elf32_Addr sh_addr;
+  Elf32_Off sh_offset;
+  Elf32_Word sh_size;
+  Elf32_Word sh_link;
+  Elf32_Word sh_info;
+  Elf32_Word sh_addralign;
+  Elf32_Word sh_entsize;
+} Elf32_Shdr;
+
 typedef struct {
   Elf32_Sword d_tag;  // Dynamic array tag controls the interpretation of d_un.
   union {
@@ -126,6 +139,19 @@ typedef struct {
 #define ELF32_R_SYM(i) ((i) >> 8)
 #define ELF32_R_TYPE(i) ((unsigned char)(i))
 #define ELF32_R_INFO(s, t) (((s) << 8) + (unsigned char)(t))
+
+typedef struct {
+  // An index into the object file's symbol string table, which holds the
+  // character representations of the symbol names. If the value is nonzero, it
+  // represents a string table index that gives the symbol name. Otherwise, the
+  // symbol table entry has no name.
+  Elf32_Word st_name;
+  Elf32_Addr st_value;
+  Elf32_Word st_size;
+  unsigned char st_info;
+  unsigned char st_other;
+  Elf32_Half st_shndx;
+} Elf32_Sym;
 
 // A: The addend used to compute the value of the relocatable field.
 //
