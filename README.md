@@ -10,6 +10,17 @@ which was referenced many times when building this. Thanks to the devs on them.
   - `clang` is nice because it doesn't require building a full cross-compiler
     toolchain.
 - lld 11.0.0
+  - NOTE: The explicit `-target` passed to clang does not explicitly specify
+    an OS (or vendor), so by default, clang under the hood will use a GCC
+    toolchain, which explicitly calls gcc/g++ for the link step. This will mean
+    any linker flags passed to clang during linking will be passed to gcc. For
+    some versions of gcc, the flag `-fuse-ld=lld` will only use an executable
+    explictly called `lld` rather than searching for programs like `lld-11`,
+    potentially resulting in some errors. (I trying to figure out why I kept
+    hitting `collect2: fatal error: cannot find ‘ld’`.) If you happen to
+    `apt-get` `lld` with a specific version number, you can work around this by
+    either `apt-get`ing `lld` without the version number, or symlinking your
+    `lld-{version}` to `lld`.
 - ld 2.35.2
   - FIXME: Turns out I've been using the system linker for flat binaries. I
     should get rid of this and just use lld.

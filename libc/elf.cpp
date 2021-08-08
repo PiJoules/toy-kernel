@@ -292,13 +292,12 @@ void LoadElfProgram(const uint8_t *elf_data, const GlobalEnvInfo *env_info,
   else
     WARN("NO STRING TABLE!\n");
 
-  const Elf32_Sym *got = elf.getSymbol("_GLOBAL_OFFSET_TABLE_");
-  if (got) {
-    DEBUG("got: %x\n", (uint8_t *)got - elf_data);
-    DEBUG("got symtab idx: %u\n", elf.getSymbolIndex(*got));
-    DEBUG("got size: %u\n", got->st_size);
-  } else
+  if (const Elf32_Shdr *got_hdr = elf.getSectionHdr(".got")) {
+    DEBUG("got: %x\n", got_hdr->sh_addr);
+    DEBUG("got size: %u\n", got_hdr->sh_size);
+  } else {
     WARN("NO GOT!\n");
+  }
 
   // Initialize the bss section to zeros.
   const Elf32_Shdr *bss_hdr = elf.getSectionHdr(".bss");
